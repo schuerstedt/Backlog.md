@@ -30,6 +30,8 @@ function App() {
   const [isDraftMode, setIsDraftMode] = useState(false);
   const [statuses, setStatuses] = useState<string[]>([]);
   const [projectName, setProjectName] = useState<string>('');
+  const [availableLabels, setAvailableLabels] = useState<string[]>([]);
+  const [configLabels, setConfigLabels] = useState<string[]>([]);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [taskConfirmation, setTaskConfirmation] = useState<{task: Task, isDraft: boolean} | null>(null);
   
@@ -73,6 +75,7 @@ function App() {
 
       setStatuses(statusesData);
       setProjectName(configData.projectName);
+      setConfigLabels(Array.isArray(configData.labels) ? configData.labels : []);
       applySearchResults(searchResults);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -107,6 +110,27 @@ function App() {
       document.title = `${projectName} - Task Management`;
     }
   }, [projectName]);
+
+  useEffect(() => {
+    const aggregated = new Set<string>();
+    for (const label of configLabels) {
+      const trimmed = label.trim();
+      if (trimmed) {
+        aggregated.add(trimmed);
+      }
+    }
+    for (const task of tasks) {
+      if (Array.isArray(task.labels)) {
+        for (const label of task.labels) {
+          const trimmed = label.trim();
+          if (trimmed) {
+            aggregated.add(trimmed);
+          }
+        }
+      }
+    }
+    setAvailableLabels(Array.from(aggregated).sort((a, b) => a.localeCompare(b)));
+  }, [configLabels, tasks]);
 
   // Mark that we've been running after initial load
   useEffect(() => {
@@ -244,6 +268,7 @@ function App() {
                   onRefreshData={refreshData}
                   statuses={statuses}
                   isLoading={isLoading}
+                  availableLabels={availableLabels}
                 />
               }
             />
@@ -255,6 +280,7 @@ function App() {
                   onNewTask={handleNewTask}
                   tasks={tasks}
                   availableStatuses={statuses}
+                  availableLabels={availableLabels}
                   onRefreshData={refreshData}
                 />
               }

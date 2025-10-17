@@ -8,12 +8,14 @@ import type {
 } from "../../types";
 import CleanupModal from "./CleanupModal";
 import { SuccessToast } from "./SuccessToast";
+import LabelFilterDropdown from "./LabelFilterDropdown";
 
 interface TaskListProps {
 	onEditTask: (task: Task) => void;
 	onNewTask: () => void;
 	tasks: Task[];
 	availableStatuses: string[];
+	availableLabels: string[];
 	onRefreshData?: () => Promise<void>;
 }
 
@@ -24,6 +26,18 @@ const PRIORITY_OPTIONS: Array<{ label: string; value: "" | SearchPriorityFilter 
 	{ label: "Low", value: "low" },
 ];
 
+const normalizeLabelList = (labels: readonly string[]): string[] =>
+	Array.from(
+		new Set(
+			labels
+				.map((label) => label.trim())
+				.filter((label) => label.length > 0),
+		),
+	).sort((a, b) => a.localeCompare(b));
+
+const arraysEqual = (a: readonly string[], b: readonly string[]): boolean =>
+	a.length === b.length && a.every((value, index) => value === b[index]);
+
 function sortTasksByIdDescending(list: Task[]): Task[] {
 	return [...list].sort((a, b) => {
 		const idA = Number.parseInt(a.id.replace("task-", ""), 10);
@@ -32,27 +46,45 @@ function sortTasksByIdDescending(list: Task[]): Task[] {
 	});
 }
 
-const TaskList: React.FC<TaskListProps> = ({ onEditTask, onNewTask, tasks, availableStatuses, onRefreshData }) => {
+const TaskList: React.FC<TaskListProps> = ({
+	onEditTask,
+	onNewTask,
+	tasks,
+	availableStatuses,
+	availableLabels,
+	onRefreshData,
+}) => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [searchValue, setSearchValue] = useState(() => searchParams.get("query") ?? "");
 	const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") ?? "");
 	const [priorityFilter, setPriorityFilter] = useState<"" | SearchPriorityFilter>(
 		() => (searchParams.get("priority") as SearchPriorityFilter | null) ?? "",
 	);
+	const [labelFilter, setLabelFilter] = useState<string[]>(() => normalizeLabelList(searchParams.getAll("label")));
 	const [displayTasks, setDisplayTasks] = useState<Task[]>(() => sortTasksByIdDescending(tasks));
 	const [error, setError] = useState<string | null>(null);
 	const [showCleanupModal, setShowCleanupModal] = useState(false);
 	const [cleanupSuccessMessage, setCleanupSuccessMessage] = useState<string | null>(null);
 
+	useEffect(() => {
+		setLabelFilter((previous) => {
+			const filtered = previous.filter((label) => availableLabels.includes(label));
+			return arraysEqual(filtered, previous) ? previous : filtered;
+		});
+	}, [availableLabels]);
+
 	const sortedBaseTasks = useMemo(() => sortTasksByIdDescending(tasks), [tasks]);
 	const normalizedSearch = searchValue.trim();
-	const hasActiveFilters = Boolean(normalizedSearch || statusFilter || priorityFilter);
+	const hasActiveFilters = Boolean(
+		normalizedSearch || statusFilter || priorityFilter || labelFilter.length > 0,
+	);
 	const totalTasks = sortedBaseTasks.length;
 
 	useEffect(() => {
 		const paramQuery = searchParams.get("query") ?? "";
 		const paramStatus = searchParams.get("status") ?? "";
 		const paramPriority = (searchParams.get("priority") as SearchPriorityFilter | null) ?? "";
+		const paramLabels = normalizeLabelList(searchParams.getAll("label"));
 
 		if (paramQuery !== searchValue) {
 			setSearchValue(paramQuery);
@@ -63,7 +95,10 @@ const TaskList: React.FC<TaskListProps> = ({ onEditTask, onNewTask, tasks, avail
 		if (paramPriority !== priorityFilter) {
 			setPriorityFilter(paramPriority);
 		}
-	}, [searchParams]);
+		if (!arraysEqual(paramLabels, labelFilter)) {
+			setLabelFilter(paramLabels);
+		}
+	}, [labelFilter, searchParams]);
 
 	useEffect(() => {
 		if (!hasActiveFilters) {
@@ -87,6 +122,7 @@ const TaskList: React.FC<TaskListProps> = ({ onEditTask, onNewTask, tasks, avail
 					types: ["task"],
 					status: statusFilter || undefined,
 					priority: (priorityFilter || undefined) as SearchPriorityFilter | undefined,
+					labels: labelFilter.length > 0 ? labelFilter : undefined,
 				});
 				if (cancelled) {
 					return;
@@ -107,9 +143,14 @@ const TaskList: React.FC<TaskListProps> = ({ onEditTask, onNewTask, tasks, avail
 		return () => {
 			cancelled = true;
 		};
-	}, [hasActiveFilters, normalizedSearch, priorityFilter, statusFilter, tasks]);
+	}, [hasActiveFilters, labelFilter, normalizedSearch, priorityFilter, statusFilter, tasks]);
 
-	const syncUrl = (nextQuery: string, nextStatus: string, nextPriority: "" | SearchPriorityFilter) => {
+	const syncUrl = (
+		nextQuery: string,
+		nextStatus: string,
+		nextPriority: "" | SearchPriorityFilter,
+		nextLabels: string[],
+	) => {
 		const params = new URLSearchParams();
 		const trimmedQuery = nextQuery.trim();
 		if (trimmedQuery) {
@@ -121,29 +162,40 @@ const TaskList: React.FC<TaskListProps> = ({ onEditTask, onNewTask, tasks, avail
 		if (nextPriority) {
 			params.set("priority", nextPriority);
 		}
+		const normalizedLabels = normalizeLabelList(nextLabels);
+		for (const label of normalizedLabels) {
+			params.append("label", label);
+		}
 		setSearchParams(params, { replace: true });
 	};
 
 	const handleSearchChange = (value: string) => {
 		setSearchValue(value);
-		syncUrl(value, statusFilter, priorityFilter);
+		syncUrl(value, statusFilter, priorityFilter, labelFilter);
 	};
 
 	const handleStatusChange = (value: string) => {
 		setStatusFilter(value);
-		syncUrl(searchValue, value, priorityFilter);
+		syncUrl(searchValue, value, priorityFilter, labelFilter);
 	};
 
 	const handlePriorityChange = (value: "" | SearchPriorityFilter) => {
 		setPriorityFilter(value);
-		syncUrl(searchValue, statusFilter, value);
+		syncUrl(searchValue, statusFilter, value, labelFilter);
+	};
+
+	const handleLabelFilterChange = (labels: string[]) => {
+		const normalized = normalizeLabelList(labels);
+		setLabelFilter(normalized);
+		syncUrl(searchValue, statusFilter, priorityFilter, normalized);
 	};
 
 	const handleClearFilters = () => {
 		setSearchValue("");
 		setStatusFilter("");
 		setPriorityFilter("");
-		syncUrl("", "", "");
+		setLabelFilter([]);
+		syncUrl("", "", "", []);
 		setDisplayTasks(sortedBaseTasks);
 		setError(null);
 	};
@@ -255,6 +307,15 @@ const TaskList: React.FC<TaskListProps> = ({ onEditTask, onNewTask, tasks, avail
 							</option>
 						))}
 					</select>
+
+					{availableLabels.length > 0 && (
+						<LabelFilterDropdown
+							availableLabels={availableLabels}
+							selectedLabels={labelFilter}
+							onChange={handleLabelFilterChange}
+							className="min-w-[180px]"
+						/>
+					)}
 
 					{statusFilter.toLowerCase() === 'done' && displayTasks.length > 0 && (
 						<button

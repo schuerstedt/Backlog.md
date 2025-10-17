@@ -10,9 +10,18 @@ interface BoardPageProps {
 	onRefreshData?: () => Promise<void>;
 	statuses: string[];
 	isLoading: boolean;
+	availableLabels: string[];
 }
 
-export default function BoardPage({ onEditTask, onNewTask, tasks, onRefreshData, statuses, isLoading }: BoardPageProps) {
+export default function BoardPage({
+	onEditTask,
+	onNewTask,
+	tasks,
+	onRefreshData,
+	statuses,
+	isLoading,
+	availableLabels,
+}: BoardPageProps) {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
 
@@ -44,6 +53,7 @@ export default function BoardPage({ onEditTask, onNewTask, tasks, onRefreshData,
 				onRefreshData={onRefreshData}
 				statuses={statuses}
 				isLoading={isLoading}
+				availableLabels={availableLabels}
 			/>
 		</div>
 	);

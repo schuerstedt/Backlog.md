@@ -146,6 +146,7 @@ export class ApiClient {
 			types?: SearchResultType[];
 			status?: string | string[];
 			priority?: SearchPriorityFilter | SearchPriorityFilter[];
+			labels?: string | string[];
 			limit?: number;
 		} = {},
 	): Promise<SearchResult[]> {
@@ -168,6 +169,12 @@ export class ApiClient {
 			const priorities = Array.isArray(options.priority) ? options.priority : [options.priority];
 			for (const priority of priorities) {
 				params.append("priority", priority);
+			}
+		}
+		if (options.labels) {
+			const labels = Array.isArray(options.labels) ? options.labels : [options.labels];
+			for (const label of labels) {
+				params.append("label", label);
 			}
 		}
 		if (options.limit !== undefined) {

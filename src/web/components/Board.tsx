@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { type Task } from '../../types';
 import { apiClient, type ReorderTaskPayload } from '../lib/api';
 import TaskColumn from './TaskColumn';
+import LabelFilterDropdown from './LabelFilterDropdown';
 import CleanupModal from './CleanupModal';
 import { SuccessToast } from './SuccessToast';
 
@@ -13,6 +14,7 @@ interface BoardProps {
   onRefreshData?: () => Promise<void>;
   statuses: string[];
   isLoading: boolean;
+  availableLabels: string[];
 }
 
 const Board: React.FC<BoardProps> = ({
@@ -23,11 +25,20 @@ const Board: React.FC<BoardProps> = ({
   onRefreshData,
   statuses,
   isLoading,
+  availableLabels,
 }) => {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [dragSourceStatus, setDragSourceStatus] = useState<string | null>(null);
   const [showCleanupModal, setShowCleanupModal] = useState(false);
   const [cleanupSuccessMessage, setCleanupSuccessMessage] = useState<string | null>(null);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSelectedLabels((previous) => {
+      const filtered = previous.filter((label) => availableLabels.includes(label));
+      return filtered.length === previous.length ? previous : filtered;
+    });
+  }, [availableLabels]);
 
   // Handle highlighting a task (opening its edit popup)
   useEffect(() => {
@@ -83,13 +94,33 @@ const Board: React.FC<BoardProps> = ({
     }, 4000);
   };
 
+  const normalizedSelectedLabels = useMemo(
+    () => selectedLabels.map((label) => label.trim().toLowerCase()).filter((label) => label.length > 0),
+    [selectedLabels],
+  );
+
+  const filteredTasks = useMemo(() => {
+    if (normalizedSelectedLabels.length === 0) {
+      return tasks;
+    }
+    return tasks.filter((task) => {
+      const taskLabels = Array.isArray(task.labels)
+        ? task.labels.map((label) => label.trim().toLowerCase()).filter((label) => label.length > 0)
+        : [];
+      if (taskLabels.length === 0) {
+        return false;
+      }
+      return normalizedSelectedLabels.every((label) => taskLabels.includes(label));
+    });
+  }, [normalizedSelectedLabels, tasks]);
+
   const tasksByStatus = useMemo(() => {
     const grouped = new Map<string, Task[]>();
     for (const status of statuses) {
       grouped.set(status, []);
     }
 
-    for (const task of tasks) {
+    for (const task of filteredTasks) {
       const statusKey = task.status ?? '';
       const list = grouped.get(statusKey);
       if (list) {
@@ -99,13 +130,13 @@ const Board: React.FC<BoardProps> = ({
       }
     }
     return grouped;
-  }, [statuses, tasks]);
+  }, [filteredTasks, statuses]);
 
   const getTasksByStatus = (status: string): Task[] => {
-    const filteredTasks = tasksByStatus.get(status) ?? tasks.filter(task => task.status === status);
+    const statusTasks = tasksByStatus.get(status) ?? filteredTasks.filter(task => task.status === status);
 
     // Sort tasks based on ordinal first, then by priority/date
-    return filteredTasks.slice().sort((a, b) => {
+    return statusTasks.slice().sort((a, b) => {
       // Tasks with ordinal come before tasks without
       if (a.ordinal !== undefined && b.ordinal === undefined) {
         return -1;
@@ -159,12 +190,20 @@ const Board: React.FC<BoardProps> = ({
       )}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 transition-colors duration-200">Kanban Board</h2>
-        <button 
-          className="inline-flex items-center px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 dark:focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-colors duration-200 cursor-pointer" 
-          onClick={onNewTask}
-        >
-          + New Task
-        </button>
+        <div className="flex items-center gap-3">
+          <LabelFilterDropdown
+            availableLabels={availableLabels}
+            selectedLabels={selectedLabels}
+            onChange={setSelectedLabels}
+            className="min-w-[12rem]"
+          />
+          <button 
+            className="inline-flex items-center px-4 py-2 bg-blue-500 dark:bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 dark:focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-colors duration-200 cursor-pointer" 
+            onClick={onNewTask}
+          >
+            + New Task
+          </button>
+        </div>
       </div>
       <div className="overflow-x-auto pb-2">
         <div className="flex flex-row flex-nowrap gap-4 w-full">

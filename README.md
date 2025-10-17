@@ -7,11 +7,24 @@
 
 ![Backlog demo GIF using: backlog board](./.github/backlog.gif)
 
+---
+
+## Marcus' Custom Enhancements
+
+This fork adds a few optional quality-of-life tweaks on top of the upstream Backlog.md project while keeping full credit with the original maintainers:
+
+- **Automatic task diagrams (Windows)** – new tasks get a matching `backlog/images/<task>.excalidraw.svg` placeholder and an inline diagram link inside Implementation Notes, together with the VS Code deep link.
+- **One-click VS Code opener (Windows)** – every newly created task/draft injects an `[Open in Code](vscode://file/...)` link at the top of Implementation Notes so you can jump straight into editing the Markdown file locally.
+- **Label filters in the web UI** – board and task list views now include a multi-select label filter sourced from `config.yml` and existing task metadata.
+- **Global CLI workflow documentation** – see `MARCUSCHANGELOG.md` for implementation details/merge notes and `MARCUSHOTTO.md` for step-by-step setup instructions to run these changes locally.
+
+Everything else remains upstream-compatible; if you prefer the vanilla experience, simply use the official repository.
+
 
 ---
 
-> **Backlog.md** turns any folder with a Git repo into a **self‑contained project board**  
-> powered by plain Markdown files and a zero‑config CLI.
+> **Backlog.md** turns any folder with a Git repo into a **self-contained project board**  
+> powered by plain Markdown files and a zero-config CLI.
 
 ## Features
 

@@ -4,9 +4,45 @@ import { dirname, join } from "node:path";
 import { DEFAULT_DIRECTORIES, DEFAULT_FILES, DEFAULT_STATUSES } from "../constants/index.ts";
 import { parseDecision, parseDocument, parseTask } from "../markdown/parser.ts";
 import { serializeDecision, serializeDocument, serializeTask } from "../markdown/serializer.ts";
+import { getStructuredSections, updateStructuredSections } from "../markdown/structured-sections.ts";
 import type { BacklogConfig, Decision, Document, Task, TaskListFilter } from "../types/index.ts";
 import { getTaskFilename, getTaskPath } from "../utils/task-path.ts";
 import { sortByTaskId } from "../utils/task-sorting.ts";
+
+const DEFAULT_EXCALIDRAW_SVG =
+	`<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20"><!-- svg-source:excalidraw --><metadata><!-- payload-type:application/vnd.excalidraw+json --><!-- payload-version:2 --><!-- payload-start -->eyJ2ZXJzaW9uIjoiMSIsImVuY29kaW5nIjoiYnN0cmluZyIsImNvbXByZXNzZWQiOnRydWUsImVuY29kZWQiOiJ4nE2PQWvDMFxmhe/9XHUwMDE1wbt2ySj0Ulx1MDAxOIONXHUwMDFkt0uPo1x1MDAwN81WOlE7MraSrlxy+e+TvcGqg0DfXHUwMDEzek/zqmmMXFxcIppdY/DbgieX4GzWhU+YMvGg0qbOmcdk6+aXSMy7rlx1MDAwYpBOKNGDxXaiPILPMjri1nLoSDDkp9LfIeBj5OAktf8m9+hIOP16oceAg2S9/nGoXHUwMDA0YtxcdTAwMGJI8Zt1VnJM5PZ0LWTzsL5hglHZ9lx1MDAwNr2xw9dcdTAwMDE+PTpVes2Ff+pEeH5cdTAwMDZ7OiZcdTAwMWVcdTAwMDf3wl5cdTAwMTPoR3d9LaNLS7XvyWNJMy+r5Vx1MDAwN1x1MDAxMi1bgiJ9<!-- payload-end --></metadata><defs><style class=\"style-fonts\">\n      </style></defs><rect x=\"0\" y=\"0\" width=\"20\" height=\"20\" fill=\"#ffffff\"></rect></svg>`;
+
+function buildNotesBlock(
+	imageLine: string | undefined,
+	linkLine: string,
+	existingNotes: string,
+	alreadyLinked = false,
+): string {
+	const trimmedExisting = existingNotes.trim();
+	const segments: string[] = [];
+
+	if (imageLine && !trimmedExisting.includes(imageLine)) {
+		segments.push(imageLine);
+	}
+
+	if (!alreadyLinked && !trimmedExisting.includes(linkLine)) {
+		segments.push(linkLine);
+	}
+
+	if (trimmedExisting) {
+		segments.push(trimmedExisting);
+	}
+
+	if (segments.length === 0) {
+		if (trimmedExisting) return trimmedExisting;
+		if (imageLine && !alreadyLinked) {
+			return `${imageLine}\n\n${linkLine}`.trim();
+		}
+		return alreadyLinked ? trimmedExisting || linkLine : linkLine;
+	}
+
+	return segments.join("\n\n").trim();
+}
 
 // Interface for task path resolution context
 interface TaskPathContext {
@@ -142,6 +178,7 @@ export class FileSystem {
 			backlogDir,
 			join(backlogDir, DEFAULT_DIRECTORIES.TASKS),
 			join(backlogDir, DEFAULT_DIRECTORIES.DRAFTS),
+			join(backlogDir, DEFAULT_DIRECTORIES.IMAGES),
 			join(backlogDir, DEFAULT_DIRECTORIES.COMPLETED),
 			join(backlogDir, DEFAULT_DIRECTORIES.ARCHIVE_TASKS),
 			join(backlogDir, DEFAULT_DIRECTORIES.ARCHIVE_DRAFTS),
@@ -154,13 +191,67 @@ export class FileSystem {
 		}
 	}
 
+	private async ensureTaskDiagram(filename: string): Promise<{ absolutePath: string; relativePath: string } | null> {
+		try {
+			const backlogDir = await this.getBacklogDir();
+			const imageDir = join(backlogDir, DEFAULT_DIRECTORIES.IMAGES);
+			await this.ensureDirectoryExists(imageDir);
+
+			const imageFilename = filename.replace(/\.md$/i, ".excalidraw.svg");
+			const imagePath = join(imageDir, imageFilename);
+			const imageFile = Bun.file(imagePath);
+
+			if (!(await imageFile.exists())) {
+				await Bun.write(imagePath, DEFAULT_EXCALIDRAW_SVG);
+			}
+
+			const relativePath = `../${DEFAULT_DIRECTORIES.IMAGES}/${encodeURI(imageFilename)}`;
+			return { absolutePath: imagePath, relativePath };
+		} catch {
+			return null;
+		}
+	}
+
 	// Task operations
 	async saveTask(task: Task): Promise<string> {
 		const taskId = task.id.startsWith("task-") ? task.id : `task-${task.id}`;
 		const filename = `${taskId} - ${this.sanitizeFilename(task.title)}.md`;
 		const tasksDir = await this.getTasksDir();
 		const filepath = join(tasksDir, filename);
-		const content = serializeTask(task);
+		let content = serializeTask(task);
+		const fileExists = await Bun.file(filepath).exists();
+
+		let diagramRelativePath: string | null = null;
+		if (!fileExists) {
+			diagramRelativePath = (await this.ensureTaskDiagram(filename))?.relativePath ?? null;
+		}
+
+		// On Windows, when creating a brand-new task, ensure Implementation Notes start with required links.
+		if (!fileExists && process.platform === "win32") {
+			try {
+				const sections = getStructuredSections(content);
+				const existingNotes = sections.implementationNotes?.trim() ?? "";
+				const alreadyLinked =
+					/vscode:\/\/file\//i.test(existingNotes) ||
+					/vscode:\/\/file\//i.test(sections.implementationNotes ?? "");
+
+				const vscodePath = filepath.replace(/\\/g, "/");
+				const linkLine = `[Open in Code](vscode://file/${encodeURI(vscodePath)})`;
+				const imageLine =
+					diagramRelativePath !== null ? `![${task.id} Diagram](${diagramRelativePath})` : undefined;
+
+				if (!alreadyLinked || imageLine) {
+					const updatedNotes = buildNotesBlock(imageLine, linkLine, existingNotes, alreadyLinked);
+					content = updateStructuredSections(content, {
+						description: sections.description ?? "",
+						implementationPlan: sections.implementationPlan ?? "",
+						implementationNotes: updatedNotes,
+					});
+				}
+			} catch {
+				// Best-effort only; ignore if anything goes wrong
+			}
+		}
 
 		// Delete any existing task files with the same ID but different filenames
 		try {
@@ -368,7 +459,39 @@ export class FileSystem {
 		const filename = `${taskId} - ${this.sanitizeFilename(task.title)}.md`;
 		const draftsDir = await this.getDraftsDir();
 		const filepath = join(draftsDir, filename);
-		const content = serializeTask(task);
+		let content = serializeTask(task);
+		const fileExists = await Bun.file(filepath).exists();
+
+		let diagramRelativePath: string | null = null;
+		if (!fileExists) {
+			diagramRelativePath = (await this.ensureTaskDiagram(filename))?.relativePath ?? null;
+		}
+
+		if (!fileExists && process.platform === "win32") {
+			try {
+				const sections = getStructuredSections(content);
+				const existingNotes = sections.implementationNotes?.trim() ?? "";
+				const alreadyLinked =
+					/vscode:\/\/file\//i.test(existingNotes) ||
+					/vscode:\/\/file\//i.test(sections.implementationNotes ?? "");
+
+				const vscodePath = filepath.replace(/\\/g, "/");
+				const linkLine = `[Open in Code](vscode://file/${encodeURI(vscodePath)})`;
+				const imageLine =
+					diagramRelativePath !== null ? `![${task.id} Diagram](${diagramRelativePath})` : undefined;
+
+				if (!alreadyLinked || imageLine) {
+					const updatedNotes = buildNotesBlock(imageLine, linkLine, existingNotes, alreadyLinked);
+					content = updateStructuredSections(content, {
+						description: sections.description ?? "",
+						implementationPlan: sections.implementationPlan ?? "",
+						implementationNotes: updatedNotes,
+					});
+				}
+			} catch {
+				// Best-effort only; ignore if anything goes wrong
+			}
+		}
 
 		try {
 			const core = { filesystem: { tasksDir: draftsDir } };

@@ -24,6 +24,7 @@ interface TaskSearchEntity extends BaseSearchEntity {
 	readonly task: Task;
 	readonly statusLower: string;
 	readonly priorityLower?: SearchPriorityFilter;
+	readonly labelsLower: string[];
 	readonly idVariants: string[];
 	readonly dependencyIds: string[];
 }
@@ -43,6 +44,7 @@ type SearchEntity = TaskSearchEntity | DocumentSearchEntity | DecisionSearchEnti
 type NormalizedFilters = {
 	statuses?: string[];
 	priorities?: SearchPriorityFilter[];
+	labels?: string[];
 };
 
 const TASK_ID_PREFIX = "task-";
@@ -190,6 +192,11 @@ export class SearchService {
 			task,
 			statusLower: task.status.toLowerCase(),
 			priorityLower: task.priority ? (task.priority.toLowerCase() as SearchPriorityFilter) : undefined,
+			labelsLower: Array.isArray(task.labels)
+				? task.labels
+						.map((label) => label.trim().toLowerCase())
+						.filter((label) => label.length > 0)
+				: [],
 			idVariants: createTaskIdVariants(task.id),
 			dependencyIds: (task.dependencies ?? []).flatMap((dependency) => createTaskIdVariants(dependency)),
 		}));
@@ -289,6 +296,21 @@ export class SearchService {
 				return allowedPriorities.has(task.priorityLower);
 			});
 		}
+		if (filters.labels && filters.labels.length > 0) {
+			const requiredLabels = new Set(filters.labels);
+			filtered = filtered.filter((task) => {
+				if (task.labelsLower.length === 0) {
+					return false;
+				}
+				const taskLabels = new Set(task.labelsLower);
+				for (const label of requiredLabels) {
+					if (!taskLabels.has(label)) {
+						return false;
+					}
+				}
+				return true;
+			});
+		}
 		return filtered;
 	}
 
@@ -305,6 +327,18 @@ export class SearchService {
 			}
 		}
 
+		if (filters.labels && filters.labels.length > 0) {
+			if (task.labelsLower.length === 0) {
+				return false;
+			}
+			const labelSet = new Set(task.labelsLower);
+			for (const label of filters.labels) {
+				if (!labelSet.has(label)) {
+					return false;
+				}
+			}
+		}
+
 		return true;
 	}
 
@@ -315,10 +349,12 @@ export class SearchService {
 
 		const statuses = this.normalizeStringArray(filters.status);
 		const priorities = this.normalizePriorityArray(filters.priority);
+		const labels = this.normalizeStringArray(filters.labels);
 
 		return {
 			statuses,
 			priorities,
+			labels,
 		};
 	}
 
