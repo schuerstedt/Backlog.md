@@ -6,7 +6,8 @@ import { parseDecision, parseDocument, parseTask } from "../markdown/parser.ts";
 import { serializeDecision, serializeDocument, serializeTask } from "../markdown/serializer.ts";
 import { getStructuredSections, updateStructuredSections } from "../markdown/structured-sections.ts";
 import type { BacklogConfig, Decision, Document, Task, TaskListFilter } from "../types/index.ts";
-import { getTaskFilename, getTaskPath } from "../utils/task-path.ts";
+import { documentIdsEqual, normalizeDocumentId } from "../utils/document-id.ts";
+import { getTaskFilename, getTaskPath, normalizeTaskId } from "../utils/task-path.ts";
 import { sortByTaskId } from "../utils/task-sorting.ts";
 
 const DEFAULT_EXCALIDRAW_SVG =
@@ -214,7 +215,7 @@ export class FileSystem {
 
 	// Task operations
 	async saveTask(task: Task): Promise<string> {
-		const taskId = task.id.startsWith("task-") ? task.id : `task-${task.id}`;
+		const taskId = normalizeTaskId(task.id);
 		const filename = `${taskId} - ${this.sanitizeFilename(task.title)}.md`;
 		const tasksDir = await this.getTasksDir();
 		const filepath = join(tasksDir, filename);
@@ -455,7 +456,7 @@ export class FileSystem {
 
 	// Draft operations
 	async saveDraft(task: Task): Promise<string> {
-		const taskId = task.id.startsWith("task-") ? task.id : `task-${task.id}`;
+		const taskId = normalizeTaskId(task.id);
 		const filename = `${taskId} - ${this.sanitizeFilename(task.title)}.md`;
 		const draftsDir = await this.getDraftsDir();
 		const filepath = join(draftsDir, filename);
@@ -578,8 +579,9 @@ export class FileSystem {
 	// Document operations
 	async saveDocument(document: Document, subPath = ""): Promise<string> {
 		const docsDir = await this.getDocsDir();
-		const normalizedId = document.id.replace(/^doc-/, "");
-		const filename = `doc-${normalizedId} - ${this.sanitizeFilename(document.title)}.md`;
+		const canonicalId = normalizeDocumentId(document.id);
+		document.id = canonicalId;
+		const filename = `${canonicalId} - ${this.sanitizeFilename(document.title)}.md`;
 		const subPathSegments = subPath
 			.split(/[\\/]+/)
 			.map((segment) => segment.trim())
@@ -590,12 +592,18 @@ export class FileSystem {
 
 		await this.ensureDirectoryExists(dirname(filepath));
 
-		const glob = new Bun.Glob(`**/doc-${normalizedId} - *.md`);
+		const glob = new Bun.Glob("**/doc-*.md");
 		const existingMatches = await Array.fromAsync(glob.scan({ cwd: docsDir }));
+		const matchesForId = existingMatches.filter((relative) => {
+			const base = relative.split("/").pop() || relative;
+			const [candidateId] = base.split(" - ");
+			if (!candidateId) return false;
+			return documentIdsEqual(canonicalId, candidateId);
+		});
 
 		let sourceRelativePath = document.path;
-		if (!sourceRelativePath && existingMatches.length > 0) {
-			sourceRelativePath = existingMatches[0];
+		if (!sourceRelativePath && matchesForId.length > 0) {
+			sourceRelativePath = matchesForId[0];
 		}
 
 		if (sourceRelativePath && sourceRelativePath !== relativePath) {
@@ -611,7 +619,7 @@ export class FileSystem {
 			}
 		}
 
-		for (const match of existingMatches) {
+		for (const match of matchesForId) {
 			const matchPath = join(docsDir, match);
 			if (matchPath === filepath) {
 				continue;
@@ -677,7 +685,7 @@ export class FileSystem {
 
 	async loadDocument(id: string): Promise<Document> {
 		const documents = await this.listDocuments();
-		const document = documents.find((doc) => doc.id === id);
+		const document = documents.find((doc) => documentIdsEqual(id, doc.id));
 		if (!document) {
 			throw new Error(`Document not found: ${id}`);
 		}

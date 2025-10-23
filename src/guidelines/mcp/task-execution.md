@@ -2,6 +2,8 @@
 
 ### Planning Workflow
 
+> **Non-negotiable:** Capture an implementation plan in the Backlog task _before_ writing any code or running commands. The plan must live in the task record prior to implementation and remain up to date when you close the task.
+
 1. **Mark task as In Progress** via `task_edit` with status "In Progress"
 2. **Assign to yourself** via `task_edit` with assignee field
 3. **Draft the implementation plan** - Think through the approach, review code, identify key files
@@ -9,6 +11,8 @@
 5. **Wait for explicit approval** - Do not start coding until user confirms or asks you to skip review
 6. **Record approved plan** - Use `task_edit` with planSet or planAppend to capture the agreed approach in the task
 7. **Document the agreed breakdown** - In the parent task's plan, capture the final list of subtasks, owners, and sequencing so future agents see the structure the user approved
+
+**IMPORTANT:** Use tasks as a permanent storage for everything related to the work. Implementation plan and notes are essential to resume work in case of interruptions or handoffs.
 
 ### Planning Guidelines
 
@@ -29,7 +33,8 @@
 
 ### Execution Workflow
 
-- **IMPORTANT**: Before writing code, wait for the user to confirm the implementation plan (or to explicitly waive the review)
+- **IMPORTANT**: Do not touch the codebase until the implementation plan is approved _and_ recorded in the task via `task_edit`
+- The recorded plan must stay accurate; if the approach shifts, update it first and get confirmation before continuing
 - If feedback requires changes, revise the plan first via `task_edit` (planSet or planAppend fields)
 - Work in short loops: implement, run the relevant tests, and immediately check off acceptance criteria with `task_edit` (acceptanceCriteriaCheck field) when they are met
 - Log progress with `task_edit` (notesAppend field) to document decisions, blockers, or learnings
@@ -60,3 +65,4 @@ If new work appears during implementation that wasn't in the original acceptance
 - When user assigns you a parent task "and all subtasks", work through each subtask sequentially without asking for permission to move to the next one
 - When completing a single subtask (without explicit instruction to continue), present progress and ask: "Subtask X is complete. Should I proceed with subtask Y, or would you like to review first?"
 - Each subtask should be fully completed (all acceptance criteria met, tests passing) before moving to the next
+
