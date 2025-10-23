@@ -2,6 +2,39 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-10-23: Merged Upstream v1.16.5 → v1.17.4
+
+### Merge Summary
+Successfully merged 15 commits from upstream (https://github.com/MrLesk/Backlog.md) bringing the fork from v1.16.5 to v1.17.4.
+
+### Strategy
+1. Created backup branch: `backup-before-upstream-merge-2025-10-23`
+2. Committed local bug fix for frontmatter preservation
+3. Stashed working directory changes (test files)
+4. Merged `upstream/main` with no conflicts
+5. All customizations preserved automatically during merge
+
+### Upstream Changes Incorporated
+- TASK-307: Support legacy MCP clients via dual-mode MCP workflow instructions
+- TASK-305: Improve MCP guidelines to cross-link workflows  
+- TASK-304: Update MCP integration documentation and CLI client commands
+- TASK-302: Support flexible ID formats for tasks and docs
+- TASK-301: MCP document tools
+- TASK-300: Fix backlog init MCP registration flags
+- TASK-299: Fix MCP initialization for multiple projects
+- 49 files changed: 1,843 insertions(+), 322 deletions(-)
+
+### Customizations Status After Merge
+All Marcus customizations were preserved:
+- ✅ Diagram/images functionality (IMAGES constant, DEFAULT_EXCALIDRAW_SVG, ensureTaskDiagram)
+- ✅ Frontmatter preservation bug fix in structured-sections.ts
+- ✅ Windows-specific VS Code link injection
+
+### Notes
+- Git auto-merge successfully handled all conflicts
+- Build and test passed after merge
+- Version now at v1.17.4 with all customizations intact
+
 ## 2025-10-23: Fixed Task Creation with Description Bug
 
 ### Problem
