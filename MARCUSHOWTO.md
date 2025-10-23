@@ -19,31 +19,21 @@ This is essential for tracking what has been modified and why.
    npm install --ignore-scripts
    ```
 
-3. Ensure Volta isn’t holding a global `backlog.md` binary. Remove it if present:
-   ```powershell
-   volta uninstall backlog.md
-   ```
-   If the Volta package directory persists (`%LOCALAPPDATA%\Volta\tools\image\packages\backlog.md`), remove it manually (may require `takeown`/`icacls` to access).
+## Making Changes Available Globally
+After making code changes, build and update the global Bun installation:
 
-## Global CLI Linking
-1. From the repository root (`F:\Backlog.md` in our setup) run:
-   ```powershell
-   npm link --ignore-scripts
-   ```
-   This exposes the CLI globally through Node/Volta.
+```powershell
+bun run build
+Copy-Item .\dist\backlog.exe C:\Users\marcu\.bun\bin\backlog.exe -Force
+```
 
-2. Build the CLI and copy the executable into the platform shim so the linked command uses the local code:
-   ```powershell
-   bun run build
-   Copy-Item -Force dist\backlog.exe node_modules\backlog.md-windows-x64\backlog.exe
-   ```
-   Repeat these two commands after any code change that should propagate globally.
+Repeat these commands after any code change that should propagate globally.
 
-3. Verify the global shim:
-   ```powershell
-   backlog --version      # should reflect repo version (e.g., 1.16.5)
-   where backlog          # should point into Volta’s shim directory
-   ```
+**Note**: Verify the correct executable is being used:
+```powershell
+where.exe backlog      # Should show C:\Users\marcu\.bun\bin\backlog.exe first
+backlog --version      # Should reflect repo version (e.g., 1.17.4)
+```
 
 ## Testing Latest Changes
 1. Launch the browser UI to confirm label filters and diagram links:
@@ -65,39 +55,7 @@ This is essential for tracking what has been modified and why.
 
 ## Troubleshooting
 
-### Volta vs Bun Installation Conflicts
-**IMPORTANT**: If you have both Volta and Bun installed, Volta's binaries in PATH take precedence!
-
-When running `backlog` command:
-1. Check which version is being executed:
-   ```powershell
-   where.exe backlog
-   ```
-   This shows all matching executables in order of precedence.
-
-2. **If Volta version appears first**, you have two options:
-   
-   **Option A - Use the development version explicitly:**
-   ```powershell
-   # From project directory
-   .\dist\backlog.exe task create "Test"
-   
-   # Or use full path to bun version
-   C:\Users\marcu\.bun\bin\backlog.exe task create "Test"
-   ```
-   
-   **Option B - Remove Volta version to use Bun globally:**
-   ```powershell
-   volta uninstall backlog.md
-   ```
-
-3. **After building**, update the Bun global installation:
-   ```powershell
-   bun run build
-   Copy-Item .\dist\backlog.exe C:\Users\marcu\.bun\bin\backlog.exe -Force
-   ```
-
-### Other Issues
+### General Issues
 - If `Copy-Item` fails because `backlog.exe` is in use, stop any running processes:
   ```powershell
   Get-Process | Where-Object { $_.Path -like '*backlog.exe*' } | Stop-Process -Force

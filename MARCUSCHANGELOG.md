@@ -2,6 +2,37 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-10-23: Resolved Volta Conflict - Permanent Fix
+
+### Problem
+The global `backlog` command was using an old Volta-installed version instead of the Bun version with latest fixes. This caused the frontmatter preservation fix to appear broken, even though the code was correct.
+
+### Root Cause
+Volta's PATH entries take precedence over Bun's. When running `where.exe backlog`, Volta's version appeared first:
+- `C:\Users\marcu\AppData\Local\Volta\bin\backlog` (old version)
+- `C:\Users\marcu\.bun\bin\backlog.exe` (current version with fixes)
+
+### Solution
+Permanently removed the Volta version:
+```powershell
+volta uninstall backlog.md
+```
+
+### Result
+- ✅ `backlog` command now uses Bun version at `C:\Users\marcu\.bun\bin\backlog.exe`
+- ✅ All custom fixes (including frontmatter preservation) work correctly
+- ✅ No need to use full paths or repeat this step - permanent fix
+
+### Updated Workflow
+Standard workflow after code changes:
+```powershell
+bun run build
+Copy-Item .\dist\backlog.exe C:\Users\marcu\.bun\bin\backlog.exe -Force
+```
+
+### Files Changed
+- `MARCUSHOWTO.md` - Simplified global installation section, removed Volta troubleshooting
+
 ## 2025-10-23: Merged Upstream v1.16.5 → v1.17.4
 
 ### Merge Summary
