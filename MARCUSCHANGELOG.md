@@ -2,6 +2,28 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-10-23: Fixed Task Creation with Description Bug
+
+### Problem
+When creating a task with a description (via CLI or browser), the YAML frontmatter was being placed in the middle of the file instead of at the top. This caused markdown parsing to fail, resulting in missing task titles and metadata.
+
+### Root Cause
+The `updateStructuredSections` function in `src/markdown/structured-sections.ts` was not preserving the YAML frontmatter position when rebuilding file content. After `serializeTask` correctly placed frontmatter at the top, the Windows-specific code in `operations.ts` would call `updateStructuredSections` to add implementation notes, which would inadvertently move the frontmatter to the middle of the file.
+
+### Solution
+Modified `updateStructuredSections` in `src/markdown/structured-sections.ts`:
+1. Extract and preserve the YAML frontmatter at the beginning (lines 197-203)
+2. Process only the body content (everything after frontmatter)
+3. Re-add the frontmatter at the top of the final output before returning (lines 247-252)
+
+### Files Changed
+- `src/markdown/structured-sections.ts` - Added frontmatter extraction and preservation logic with detailed MARCUS comments explaining the fix
+
+### Testing Notes
+- The bug only manifested in the compiled `backlog.exe`, not when running via `bun run cli`
+- Be aware of Volta vs Bun PATH precedence issues (see MARCUSHOWTO.md troubleshooting section)
+- After building, update the global installation: `Copy-Item .\dist\backlog.exe C:\Users\marcu\.bun\bin\backlog.exe -Force`
+
 ## Task Diagram Bootstrap (Windows-only)
 - Added `DEFAULT_DIRECTORIES.IMAGES` constant and ensured `backlog/images` is created in `FileSystem.ensureBacklogStructure` (`src/constants/index.ts`, `src/file-system/operations.ts`).
 - Introduced `DEFAULT_EXCALIDRAW_SVG`, `buildNotesBlock`, and `ensureTaskDiagram` helpers in `src/file-system/operations.ts`.

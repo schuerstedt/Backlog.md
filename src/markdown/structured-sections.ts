@@ -190,7 +190,19 @@ interface SectionValues extends StructuredSectionValues {}
 export function updateStructuredSections(content: string, sections: SectionValues): string {
 	const { text: src, useCRLF } = normalizeToLF(content);
 
-	let working = src;
+	// MARCUS: Extract and preserve YAML frontmatter to prevent it from being moved to the middle of the file
+	// Bug fix: When creating tasks with descriptions, the frontmatter was being corrupted by being placed
+	// after the description section instead of at the top of the file where it belongs.
+	// This caused markdown parsing to fail, resulting in missing task titles and metadata.
+	let frontmatter = "";
+	let bodyContent = src;
+	const frontmatterMatch = src.match(/^---\n([\s\S]*?)\n---\n*/);
+	if (frontmatterMatch) {
+		frontmatter = frontmatterMatch[0];
+		bodyContent = src.slice(frontmatter.length);
+	}
+
+	let working = bodyContent;
 	for (const key of SECTION_INSERTION_ORDER) {
 		working = stripSectionInstances(working, key);
 	}
@@ -234,7 +246,24 @@ export function updateStructuredSections(content: string, sections: SectionValue
 		output = insertAtStart(tail, descriptionBlock);
 	}
 
-	const finalOutput = output.replace(/\n{3,}/g, "\n\n").trim();
+	// MARCUS: Re-add the YAML frontmatter at the very beginning of the file
+	// This ensures the frontmatter stays at the top where it belongs for proper markdown parsing.
+	// Without this, the frontmatter would end up in the middle of the file after the description section.
+	// We must add frontmatter AFTER building the body content, so it ends up at the top.
+	let finalOutput: string;
+	if (frontmatter) {
+		// Ensure there's proper spacing between frontmatter and body
+		const bodyWithProperSpacing = output ? output.trim() : "";
+		finalOutput = frontmatter.trimEnd() + (bodyWithProperSpacing ? `\n\n${bodyWithProperSpacing}` : "");
+	} else {
+		finalOutput = output.replace(/\n{3,}/g, "\n\n").trim();
+	}
+	
+	// Clean up excessive newlines but preserve the structure
+	if (!frontmatter) {
+		finalOutput = finalOutput.replace(/\n{3,}/g, "\n\n");
+	}
+	
 	return restoreLineEndings(finalOutput, useCRLF);
 }
 

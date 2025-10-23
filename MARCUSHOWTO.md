@@ -2,6 +2,10 @@
 
 Quick reference for enabling custom Backlog.md features on a new machine.
 
+## ⚠️ CRITICAL: ALWAYS UPDATE MARCUSCHANGELOG.md
+**Whenever you make changes to the codebase, ALWAYS document them in `MARCUSCHANGELOG.md`!**
+This is essential for tracking what has been modified and why.
+
 ## Prerequisites
 1. Install Bun via PowerShell:
    ```powershell
@@ -60,6 +64,40 @@ Quick reference for enabling custom Backlog.md features on a new machine.
 3. When pulling upstream changes, consult `MARCUSCHANGELOG.md` to reapply custom patches as needed; rebuild/copy the binary afterward.
 
 ## Troubleshooting
+
+### Volta vs Bun Installation Conflicts
+**IMPORTANT**: If you have both Volta and Bun installed, Volta's binaries in PATH take precedence!
+
+When running `backlog` command:
+1. Check which version is being executed:
+   ```powershell
+   where.exe backlog
+   ```
+   This shows all matching executables in order of precedence.
+
+2. **If Volta version appears first**, you have two options:
+   
+   **Option A - Use the development version explicitly:**
+   ```powershell
+   # From project directory
+   .\dist\backlog.exe task create "Test"
+   
+   # Or use full path to bun version
+   C:\Users\marcu\.bun\bin\backlog.exe task create "Test"
+   ```
+   
+   **Option B - Remove Volta version to use Bun globally:**
+   ```powershell
+   volta uninstall backlog.md
+   ```
+
+3. **After building**, update the Bun global installation:
+   ```powershell
+   bun run build
+   Copy-Item .\dist\backlog.exe C:\Users\marcu\.bun\bin\backlog.exe -Force
+   ```
+
+### Other Issues
 - If `Copy-Item` fails because `backlog.exe` is in use, stop any running processes:
   ```powershell
   Get-Process | Where-Object { $_.Path -like '*backlog.exe*' } | Stop-Process -Force
