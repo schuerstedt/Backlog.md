@@ -119,18 +119,11 @@ argsToPass = [join(__dirname, "src", "cli.ts"), ...rawArgs];
 if (rawArgs[0] === "init") {
   // Run backlog init in the session directory
   const initChild = spawn(backlogCommand, argsToPass, {
-    stdio: "pipe",  // Use pipe to capture output for proper handling
+    stdio: "inherit", // Inherit TTY to support interactive prompts and proper UI
     cwd: sessionDir,
   });
 
-  // Forward stdout and stderr
-  initChild.stdout.on("data", (data) => {
-    process.stdout.write(data);
-  });
-
-  initChild.stderr.on("data", (data) => {
-    process.stderr.write(data);
-  });
+  // stdio is inherited; no need to manually forward streams
 
   initChild.on("exit", (code) => {
     if (code === 0) {
@@ -147,18 +140,11 @@ if (rawArgs[0] === "init") {
 } else {
   // For all other commands, just pass them through to the session directory
   const child = spawn(backlogCommand, argsToPass, {
-    stdio: "pipe",  // Use pipe to capture and forward output properly
+    stdio: "inherit", // Inherit TTY for full-screen UI and interactive commands
     cwd: sessionDir,
   });
 
-  // Forward stdout and stderr to maintain transparency
-  child.stdout.on("data", (data) => {
-    process.stdout.write(data);
-  });
-
-  child.stderr.on("data", (data) => {
-    process.stderr.write(data);
-  });
+  // stdio is inherited; no need to manually forward streams
 
   // Handle exit
   child.on("exit", (code) => {
@@ -225,10 +211,10 @@ function patchConfigAfterInit(sessionDir) {
       } else {
         // Parse JSON config
         const config = JSON.parse(configContent);
-        
+
         // Update statuses to Plan, Approve, Cancel, Doing, Done
-        config.statuses = ["Plan, Approve, Cancel, Doing, Done"];
-        
+        config.statuses = ["Plan", "Approve", "Cancel", "Doing", "Done"];
+
         // Write the updated config back
         writeFileSync(configPath, JSON.stringify(config, null, 2));
         console.log("✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done");
