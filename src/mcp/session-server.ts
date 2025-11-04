@@ -16,10 +16,13 @@ import { registerWorkflowResources } from "./resources/workflow/index.ts";
 import { registerTaskTools } from "./tools/tasks/index.ts";
 
 /**
- * Create the session directory in the current working directory
+ * Create the session directory in the current working directory.
+ * Uses a date-based directory name (backlogsession-YYYY-MM-DD).
+ * If a session for today exists, reuses it. Otherwise creates a new one.
  */
 function ensureSessionDirectory(cwd: string): string {
-	const sessionDir = join(cwd, "backlogsession");
+	const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+	const sessionDir = join(cwd, `backlogsession-${today}`);
 	if (!existsSync(sessionDir)) {
 		mkdirSync(sessionDir, { recursive: true });
 	}
@@ -29,7 +32,7 @@ function ensureSessionDirectory(cwd: string): string {
 const APP_NAME = `${getPackageName()}-session`;
 const APP_VERSION = await getVersion();
 const INSTRUCTIONS_POINTER =
-	"At the beginning of each session, read the backlog://workflow/overview resource to understand when and how to use Backlog.md for task management. Additional detailed guides are available as resources when needed. This session version uses the backlogsession wrapper which isolates operations to a dedicated session directory with custom columns: Plan, Approve, Cancel, Doing, Done.";
+	"At the beginning of each session, read the backlog://workflow/overview resource to understand when and how to use Backlog.md for task management. Additional detailed guides are available as resources when needed. This session version uses the backlogsession wrapper which isolates operations to a dedicated daily session directory (backlogsession-YYYY-MM-DD) with custom columns: Plan, Approve, Cancel, Doing, Done.";
 
 type ServerInitOptions = {
 	debug?: boolean;
@@ -52,6 +55,7 @@ export class SessionMcpServer extends McpServer {
 
 /**
  * Factory that bootstraps a fully configured session MCP server instance.
+ * Creates a new session for today if none exists, or reuses existing session.
  */
 export async function createSessionMcpServer(
 	projectRoot: string,
@@ -61,9 +65,17 @@ export async function createSessionMcpServer(
 
 	await server.ensureConfigLoaded();
 
-	const config = await server.filesystem.loadConfig();
+	let config = await server.filesystem.loadConfig();
+	
+	// If no config exists, initialize the session
 	if (!config) {
-		throw new Error("Failed to load backlog configuration");
+		const today = new Date().toISOString().split("T")[0];
+		await server.initializeProject(`Session ${today}`);
+		config = await server.filesystem.loadConfig();
+		
+		if (!config) {
+			throw new Error("Failed to initialize session configuration");
+		}
 	}
 
 	// Apply custom column configuration for the session (Plan, Approve, Cancel, Doing, Done)

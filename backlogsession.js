@@ -12,7 +12,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rawArgs = process.argv.slice(2);
 
 // The session directory should be created in the current working directory
-const sessionDir = join(process.cwd(), "backlogsession");
+// Uses a date-based directory name (backlogsession-YYYY-MM-DD)
+// If a session for today exists, reuses it. Otherwise creates a new one.
+const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+const sessionDir = join(process.cwd(), `backlogsession-${today}`);
 if (!existsSync(sessionDir)) {
   mkdirSync(sessionDir, { recursive: true });
 }
