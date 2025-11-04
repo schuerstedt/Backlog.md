@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,13 +11,100 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Get all arguments after the script name
 const rawArgs = process.argv.slice(2);
 
-// The session directory should be created in the current working directory
-// Uses a date-based directory name (backlogsession-YYYY-MM-DD)
-// If a session for today exists, reuses it. Otherwise creates a new one.
+// Parent directory for all sessions
+const sessionsParentDir = join(process.cwd(), "backlogsession");
+if (!existsSync(sessionsParentDir)) {
+  mkdirSync(sessionsParentDir, { recursive: true });
+}
+
+/**
+ * Get all session directories for today
+ * @param {string} today - Date string in YYYY-MM-DD format
+ * @returns {string[]} Array of session directory paths sorted by number
+ */
+function getTodaysSessions(today) {
+  if (!existsSync(sessionsParentDir)) {
+    return [];
+  }
+  
+  const entries = readdirSync(sessionsParentDir, { withFileTypes: true });
+  const todaySessions = entries
+    .filter(entry => entry.isDirectory() && entry.name.startsWith(`${today}-`))
+    .map(entry => {
+      const match = entry.name.match(new RegExp(`^${today.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+)$`));
+      return match ? { path: join(sessionsParentDir, entry.name), number: parseInt(match[1], 10) } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.number - b.number);
+  
+  return todaySessions.map(s => s.path);
+}
+
+/**
+ * Get the last (highest numbered) session for today, or null if none exist
+ * @param {string} today - Date string in YYYY-MM-DD format
+ * @returns {string|null} Path to the last session or null
+ */
+function getLastSessionForToday(today) {
+  const sessions = getTodaysSessions(today);
+  return sessions.length > 0 ? sessions[sessions.length - 1] : null;
+}
+
+/**
+ * Create a new session directory for today with the next consecutive number
+ * @param {string} today - Date string in YYYY-MM-DD format
+ * @returns {string} Path to the newly created session directory
+ */
+function createNewSessionForToday(today) {
+  const sessions = getTodaysSessions(today);
+  const nextNumber = sessions.length + 1;
+  const newSessionDir = join(sessionsParentDir, `${today}-${nextNumber}`);
+  mkdirSync(newSessionDir, { recursive: true });
+  return newSessionDir;
+}
+
+// Determine today's date
 const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-const sessionDir = join(process.cwd(), `backlogsession-${today}`);
-if (!existsSync(sessionDir)) {
-  mkdirSync(sessionDir, { recursive: true });
+
+// Determine which session directory to use
+let sessionDir;
+const isInitCommand = rawArgs[0] === "init";
+
+if (isInitCommand) {
+  // For 'init' command, always create a new session
+  sessionDir = createNewSessionForToday(today);
+} else {
+  // For other commands, use the last session for today, or auto-create if none exists
+  sessionDir = getLastSessionForToday(today);
+  
+  if (!sessionDir) {
+    // No session exists for today - auto-initialize
+    console.log("No session found for today. Auto-initializing first session...");
+    sessionDir = createNewSessionForToday(today);
+    
+    // Auto-run init command
+    const autoInitArgs = ["init", `Session ${today}-1`, "--defaults", "--agent-instructions", "none"];
+    const initChild = spawn("bun", [join(__dirname, "src", "cli.ts"), ...autoInitArgs], {
+      stdio: "inherit",
+      cwd: sessionDir,
+    });
+    
+    initChild.on("exit", (code) => {
+      if (code === 0) {
+        patchConfigAfterInit(sessionDir);
+        console.log(`✓ Session initialized: ${sessionDir}`);
+        console.log("Now you can run your command again.");
+      }
+      process.exit(code || 0);
+    });
+    
+    initChild.on("error", (err) => {
+      console.error("Failed to auto-initialize session:", err);
+      process.exit(1);
+    });
+    
+    process.exit(0); // Exit successfully after auto-initialization
+  }
 }
 
 // Try to determine the backlog CLI path
