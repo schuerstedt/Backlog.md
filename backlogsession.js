@@ -2,7 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { join, dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Get the directory name for the current file
@@ -11,10 +11,57 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Get all arguments after the script name
 const rawArgs = process.argv.slice(2);
 
-// Parent directory for all sessions
-const sessionsParentDir = join(process.cwd(), "backlogsession");
-if (!existsSync(sessionsParentDir)) {
-  mkdirSync(sessionsParentDir, { recursive: true });
+// Utility: walk upwards to find a directory matching a predicate
+function findUp(startDir, predicate) {
+  let dir = startDir;
+  while (true) {
+    if (predicate(dir)) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+// Detect if current directory is already a backlog session (initialized project)
+function isBacklogProject(dir) {
+  return (
+    existsSync(join(dir, "backlog", "config.yml")) ||
+    existsSync(join(dir, "config.yml")) ||
+    existsSync(join(dir, "backlog.json"))
+  );
+}
+
+const SESSION_NAME_RE = /^\d{4}-\d{2}-\d{2}-\d+$/;
+
+// Find the session root directory if CWD is inside one (backlogsession/YYYY-MM-DD-N[/...])
+function resolveCurrentSessionDir(cwd) {
+  const parent = findUp(cwd, (dir) => basename(dir) === "backlogsession");
+  if (!parent) return null;
+  // walk up from cwd until we reach a direct child of parent that matches session name
+  let dir = cwd;
+  while (dir && dir.length >= parent.length) {
+    if (dirname(dir) === parent && SESSION_NAME_RE.test(basename(dir))) {
+      return dir;
+    }
+    if (dir === parent) break;
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return null;
+}
+
+// Resolve the sessions parent directory relative to current location.
+// If we're inside a sessions directory already, find the nearest ancestor named "backlogsession".
+// Otherwise default to creating/using `./backlogsession` from the current working directory.
+function resolveSessionsParentDir(cwd) {
+  // if inside .../backlogsession[/YYYY-MM-DD-N] return that backlogsession ancestor
+  const found = findUp(cwd, (dir) => basename(dir) === "backlogsession");
+  if (found) return found;
+  const parent = join(cwd, "backlogsession");
+  if (!existsSync(parent)) mkdirSync(parent, { recursive: true });
+  return parent;
 }
 
 /**
@@ -22,7 +69,7 @@ if (!existsSync(sessionsParentDir)) {
  * @param {string} today - Date string in YYYY-MM-DD format
  * @returns {string[]} Array of session directory paths sorted by number
  */
-function getTodaysSessions(today) {
+function getTodaysSessions(today, sessionsParentDir) {
   if (!existsSync(sessionsParentDir)) {
     return [];
   }
@@ -45,8 +92,8 @@ function getTodaysSessions(today) {
  * @param {string} today - Date string in YYYY-MM-DD format
  * @returns {string|null} Path to the last session or null
  */
-function getLastSessionForToday(today) {
-  const sessions = getTodaysSessions(today);
+function getLastSessionForToday(today, sessionsParentDir) {
+  const sessions = getTodaysSessions(today, sessionsParentDir);
   return sessions.length > 0 ? sessions[sessions.length - 1] : null;
 }
 
@@ -55,8 +102,8 @@ function getLastSessionForToday(today) {
  * @param {string} today - Date string in YYYY-MM-DD format
  * @returns {string} Path to the newly created session directory
  */
-function createNewSessionForToday(today) {
-  const sessions = getTodaysSessions(today);
+function createNewSessionForToday(today, sessionsParentDir) {
+  const sessions = getTodaysSessions(today, sessionsParentDir);
   const nextNumber = sessions.length + 1;
   const newSessionDir = join(sessionsParentDir, `${today}-${nextNumber}`);
   mkdirSync(newSessionDir, { recursive: true });
@@ -67,23 +114,29 @@ function createNewSessionForToday(today) {
 const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
 // Determine which session directory to use
-let sessionDir;
+const cwd = process.cwd();
 const isInitCommand = rawArgs[0] === "init";
+let sessionDir;
+
+// If we're already inside a backlog project (a session), use it directly for non-init commands
+const currentSessionDir = resolveCurrentSessionDir(cwd);
+const sessionsParentDir = resolveSessionsParentDir(cwd);
 
 if (isInitCommand) {
   // For 'init' command, always create a new session
-  sessionDir = createNewSessionForToday(today);
+  sessionDir = createNewSessionForToday(today, sessionsParentDir);
 } else {
   // For other commands, use the last session for today, or auto-create if none exists
-  sessionDir = getLastSessionForToday(today);
+  sessionDir = currentSessionDir || getLastSessionForToday(today, sessionsParentDir);
   
   if (!sessionDir) {
     // No session exists for today - auto-initialize
     console.log("No session found for today. Auto-initializing first session...");
-    sessionDir = createNewSessionForToday(today);
+    sessionDir = createNewSessionForToday(today, sessionsParentDir);
     
     // Auto-run init command
-    const autoInitArgs = ["init", `Session ${today}-1`, "--defaults", "--agent-instructions", "none"];
+    const createdName = basename(sessionDir); // e.g. 2025-11-04-1
+    const autoInitArgs = ["init", `Session ${createdName}` , "--defaults", "--agent-instructions", "none"];
     const initChild = spawn("bun", [join(__dirname, "src", "cli.ts"), ...autoInitArgs], {
       stdio: "inherit",
       cwd: sessionDir,
