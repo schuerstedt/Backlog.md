@@ -4,17 +4,20 @@ BacklogSession provides session-isolated task management, perfect for AI agents,
 
 ## Overview
 
-When you run `backlogsession`, all operations happen in a dedicated `backlogsession/` subdirectory with its own:
+When you run `backlogsession` or start the session MCP server, all operations happen in a dedicated date-based subdirectory (`backlogsession-YYYY-MM-DD`) with its own:
 - Task backlog
 - Configuration (with custom workflow columns)
 - Git history (within the session directory)
 - File structure
 
+**Daily Sessions**: Each day gets its own session directory. If you've already created a session today, it will be reused. This allows you to organize work by day while maintaining continuity within the day.
+
 This isolation allows you to:
 - Test task management scenarios safely
-- Give AI agents a sandbox for task experimentation
+- Give AI agents a sandbox for task experimentation  
 - Run temporary project planning sessions
 - Use custom workflow columns without affecting main backlog
+- Organize work by day with automatic session creation
 
 ## Installation
 
@@ -41,15 +44,17 @@ backlogsession init "My Session Name"
 This creates:
 ```
 ~/my-project/
-  backlogsession/          # Session root
-    backlog/               # Session backlog structure
-      config.yml           # Custom columns: Plan, Approve, Cancel, Doing, Done
+  backlogsession-2025-11-04/   # Today's session
+    backlog/                   # Session backlog structure
+      config.yml               # Custom columns: Plan, Approve, Cancel, Doing, Done
       tasks/
       drafts/
       completed/
       decisions/
       docs/
 ```
+
+**Note**: The date in the directory name is automatically set to today's date. If you run this again tomorrow, a new `backlogsession-2025-11-05/` directory will be created.
 
 ### 2. Use All Backlog Commands
 
@@ -79,12 +84,14 @@ backlogsession decision create "Architecture Choice"
 For AI agent integration (Claude Desktop, etc.):
 
 ```bash
-# Start session MCP server
+# Start session MCP server (auto-creates today's session if needed)
 backlog session-mcp start
 
 # With debug logging
 backlog session-mcp start --debug
 ```
+
+**Auto-Initialization**: The MCP server will automatically create and initialize a session for today if one doesn't exist. No manual setup required!
 
 ## Custom Workflow Columns
 
@@ -191,7 +198,7 @@ backlog session-mcp-start [--debug]
 ### Directory Structure
 ```
 your-project/
-  backlogsession/              # Session workspace
+  backlogsession-2025-11-04/   # Today's session
     backlog/                   # Session backlog
       config.yml               # Custom workflow config
       tasks/                   # Session tasks
@@ -200,6 +207,9 @@ your-project/
       docs/                    # Session documentation
       decisions/               # Session decisions
       images/                  # Session diagrams
+  backlogsession-2025-11-03/   # Yesterday's session (if exists)
+    backlog/                   # Previous session backlog
+    ...
   backlog/                     # Main backlog (untouched)
     config.yml                 # Main workflow config
     tasks/                     # Main tasks
@@ -232,36 +242,45 @@ When you run `backlogsession init`:
 
 | Feature | Main Backlog | BacklogSession |
 |---------|--------------|----------------|
-| **Location** | `./backlog/` | `./backlogsession/backlog/` |
+| **Location** | `./backlog/` | `./backlogsession-YYYY-MM-DD/backlog/` |
 | **Workflow** | To Do → In Progress → Done | Plan → Approve → Cancel → Doing → Done |
-| **Isolation** | Project-wide | Session-specific |
+| **Isolation** | Project-wide | Daily session-specific |
 | **Command** | `backlog` | `backlogsession` |
 | **MCP Server** | `backlog mcp start` | `backlog session-mcp start` |
+| **Auto-Init** | Manual `backlog init` | Auto-creates daily session |
 | **Use Case** | Production work | Experiments, planning, agents |
 
 ## Tips & Best practices
 
 ### 1. Multiple Sessions
-You can have sessions in different directories:
+Sessions are organized by date automatically:
 ```bash
+# Today's session
 cd ~/project-a
-backlogsession init "Session A"
+backlogsession task create "Today's task"
+# Uses: backlogsession-2025-11-04/
 
-cd ~/project-b
-backlogsession init "Session B"
+# Tomorrow's work
+# (Next day)
+backlogsession task create "Tomorrow's task"
+# Uses: backlogsession-2025-11-05/
 ```
 
-### 2. Clean Up Sessions
+### 2. Clean Up Old Sessions
 Sessions are just directories - delete when done:
 ```bash
-rm -rf backlogsession/
+# Remove yesterday's session
+rm -rf backlogsession-2025-11-03/
+
+# Remove all sessions older than 7 days
+find . -maxdepth 1 -name "backlogsession-*" -mtime +7 -exec rm -rf {} \;
 ```
 
 ### 3. Git Integration
 Session directories can be git-ignored:
 ```gitignore
 # .gitignore
-backlogsession/
+backlogsession-*/
 ```
 
 Or committed if you want to preserve session history.
