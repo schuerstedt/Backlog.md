@@ -273,7 +273,8 @@ function findFreePort(startPort = 6420) {
         });
       });
       
-      server.listen(port, '127.0.0.1');
+      // Listen on all interfaces (0.0.0.0) to properly detect port conflicts
+      server.listen(port);
     };
     
     tryPort(startPort);
