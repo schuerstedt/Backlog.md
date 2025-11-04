@@ -276,12 +276,12 @@ function patchConfigAfterInit(sessionDir) {
             // Replace the statuses line with our custom ones
             // Preserve the original indentation
             const indent = line.match(/^\s*/)?.[0] || '';
-            updatedLines.push(`${indent}statuses: [Plan, Approve, Cancel, Doing, Done]`);
+            updatedLines.push(`${indent}statuses: ["Plan", "Approve", "Cancel", "Doing", "Done"]`);
             foundStatuses = true;
           } else if (line.trim().startsWith('default_status:')) {
             // Replace default_status with "Plan"
             const indent = line.match(/^\s*/)?.[0] || '';
-            updatedLines.push(`${indent}default_status: Plan`);
+            updatedLines.push(`${indent}default_status: "Plan"`);
             foundDefaultStatus = true;
           } else {
             updatedLines.push(line);
@@ -290,12 +290,12 @@ function patchConfigAfterInit(sessionDir) {
         
         if (!foundStatuses) {
           // If statuses line was not found, append it
-          updatedLines.push('statuses: [Plan, Approve, Cancel, Doing, Done]');
+          updatedLines.push('statuses: ["Plan", "Approve", "Cancel", "Doing", "Done"]');
         }
         
         if (!foundDefaultStatus) {
           // If default_status was not found, append it
-          updatedLines.push('default_status: Plan');
+          updatedLines.push('default_status: "Plan"');
         }
         
         writeFileSync(configPath, updatedLines.join('\n'));
