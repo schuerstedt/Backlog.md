@@ -2,6 +2,46 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-11-04: Merged Upstream v1.17.4 → v1.18.5
+
+### Merge Summary
+Successfully merged 17 commits from upstream (https://github.com/MrLesk/Backlog.md) bringing the fork from v1.17.4 to v1.18.5.
+
+### Strategy
+1. Created backup branch: `backup-before-upstream-merge-2025-11-04`
+2. Fetched latest upstream changes
+3. Merged `upstream/main` with no conflicts
+4. All customizations preserved automatically during merge
+
+### Upstream Changes Incorporated
+Major new features:
+- **TASK-308**: Shell tab completion support for CLI commands (bash, zsh, fish)
+- **TASK-312**: Baseline build targets for older CPUs without AVX2 support
+- **TASK-314**: Synced CI and release workflows with Bun 1.2.23
+- **TASK-315**: Fixed NixOS flake to use baseline Bun for build process
+- **TASK-311**: Rollback CI to Bun 1.2.23
+- **TASK-309**: Improve TUI empty state when task filters return no results
+- **TASK-310**: Strengthen Backlog workflow overview emphasis
+
+### Files Changed
+- 39 files changed: 2,845 insertions(+), 135 deletions(-)
+- New: Shell completion scripts for bash, zsh, and fish
+- New: Comprehensive completion system with dynamic task ID and config value completion
+- Updated: CI/CD workflows for better cross-platform support
+- Updated: Biome and project configuration
+
+### Customizations Status After Merge
+All Marcus customizations were preserved:
+- ✅ Diagram/images functionality (IMAGES constant, DEFAULT_EXCALIDRAW_SVG, ensureTaskDiagram)
+- ✅ Frontmatter preservation bug fix in structured-sections.ts
+- ✅ Windows-specific VS Code link injection
+
+### Notes
+- Git auto-merge successfully handled all changes
+- Build completed successfully
+- Version now at v1.18.5 with all customizations intact
+- Some test failures expected due to Marcus customizations (diagram injection in Implementation Notes)
+
 ## 2025-10-23: Resolved Volta Conflict - Permanent Fix
 
 ### Problem
