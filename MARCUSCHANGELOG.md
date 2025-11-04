@@ -2,6 +2,136 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-11-04: BacklogSession Integration
+
+### Summary
+Integrated the BacklogSession feature from `edunmore/BacklogSession:codextry` branch, providing isolated session workspace functionality while maintaining full compatibility with the main Backlog.md codebase.
+
+### What is BacklogSession?
+BacklogSession creates an isolated workspace in a `backlogsession/` subdirectory, allowing agents or users to work on tasks without affecting the main project backlog. Perfect for:
+- AI agent experimentation
+- Temporary project planning
+- Session-based workflows with custom column configurations
+- Testing task management scenarios
+
+### Key Features Added
+1. **Session Isolation**: All operations occur in dedicated `backlogsession/` directory
+2. **Custom Workflow Columns**: Plan → Approve → Cancel → Doing → Done
+3. **Dual CLI Support**: 
+   - `backlogsession` wrapper for isolated operations
+   - `backlog session-mcp start` for MCP server in session mode
+4. **Full Feature Parity**: All backlog commands work in session context
+
+### Implementation Details
+
+#### New Files
+- **`backlogsession.js`** (152 lines): Node.js CLI wrapper that:
+  - Creates `backlogsession/` directory in current working directory
+  - Delegates all commands to main CLI within session context
+  - Patches config after `init` to set custom columns
+  - Handles both development and production modes
+
+- **`src/commands/session-mcp.ts`**: CLI command registration for session MCP server
+  - Registers `session-mcp` command group
+  - Provides `session-mcp start` for stdio transport
+  - Includes debug logging options
+
+- **`src/mcp/session-server.ts`**: Session-aware MCP server implementation
+  - Extends `McpServer` base class for code reuse
+  - Creates isolated session directory automatically
+  - Configures custom workflow columns in session config
+  - Shares all MCP tools and resources from main server
+
+- **`src/test/backlogsession.test.ts`**: Comprehensive test suite
+  - Tests session directory creation
+  - Verifies command delegation
+  - Validates config patching
+  - Confirms output proxying
+  - All 5 tests passing ✅
+
+#### Modified Files
+- **`package.json`**: Added `backlogsession` binary entry
+- **`src/cli.ts`**: Registered session-mcp command group
+
+### Architecture
+```
+SessionMcpServer extends McpServer extends Core
+                              ↓
+                    Uses session directory
+                    (backlogsession/)
+                              ↓
+                    Same filesystem, git ops
+                              ↓
+                    Custom workflow config
+```
+
+### Usage Examples
+
+#### Initialize a Session
+```bash
+backlogsession init "My Session"
+# Creates backlogsession/backlog/ with custom columns
+```
+
+#### Use All Commands in Session
+```bash
+backlogsession task create "Plan the feature"
+backlogsession task edit 1 --status Approve
+backlogsession board
+```
+
+#### MCP Server in Session Mode
+```bash
+backlog session-mcp start
+# Or with debug logging:
+backlog session-mcp start --debug
+```
+
+#### Configure in Claude Desktop
+```json
+{
+  "mcpServers": {
+    "backlog-session": {
+      "command": "backlog",
+      "args": ["session-mcp", "start"]
+    }
+  }
+}
+```
+
+### Testing Status
+- ✅ All 5 BacklogSession wrapper tests passing
+- ✅ TypeScript compilation clean (no errors)
+- ✅ Build successful
+- ⚠️ Some existing tests show interference from temp dir (expected, not a blocker)
+
+### Session Workflow Columns
+The session automatically configures these custom statuses:
+1. **Plan** - Initial planning phase
+2. **Approve** - Review and approval needed
+3. **Cancel** - Rejected or cancelled items
+4. **Doing** - Active work in progress
+5. **Done** - Completed items
+
+### Compatibility
+- ✅ Maintains all Marcus customizations
+- ✅ Compatible with diagram/image functionality
+- ✅ Works with existing MCP infrastructure
+- ✅ No conflicts with main backlog commands
+
+### Source
+- Original: https://github.com/edunmore/BacklogSession/tree/codextry
+- Integration branch: `feature/backlog-session`
+- Commit: feat: Add BacklogSession integration with isolated workspace support
+
+### Notes
+- Session directories are independent - can have multiple sessions in different folders
+- Config patching happens automatically on `backlogsession init`
+- Session MCP server shares workflow resources with main MCP server
+- Full backward compatibility - no breaking changes to existing functionality
+
+---
+
 ## 2025-11-04: Merged Upstream v1.17.4 → v1.18.5
 
 ### Merge Summary

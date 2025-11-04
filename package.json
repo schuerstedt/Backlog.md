@@ -8,7 +8,8 @@
 		"LICENSE"
 	],
 	"bin": {
-		"backlog": "scripts/cli.cjs"
+		"backlog": "scripts/cli.cjs",
+		"backlogsession": "backlogsession.js"
 	},
 	"optionalDependencies": {
 		"backlog.md-darwin-arm64": "*",
