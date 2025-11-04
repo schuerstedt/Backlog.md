@@ -265,10 +265,11 @@ function patchConfigAfterInit(sessionDir) {
       const configContent = readFileSync(configPath, "utf8");
       
       if (isYaml) {
-        // For YAML config, find and replace the statuses line
+        // For YAML config, find and replace the statuses and default_status lines
         const lines = configContent.split('\n');
         const updatedLines = [];
         let foundStatuses = false;
+        let foundDefaultStatus = false;
         
         for (const line of lines) {
           if (line.trim().startsWith('statuses:')) {
@@ -277,6 +278,11 @@ function patchConfigAfterInit(sessionDir) {
             const indent = line.match(/^\s*/)?.[0] || '';
             updatedLines.push(`${indent}statuses: [Plan, Approve, Cancel, Doing, Done]`);
             foundStatuses = true;
+          } else if (line.trim().startsWith('default_status:')) {
+            // Replace default_status with "Plan"
+            const indent = line.match(/^\s*/)?.[0] || '';
+            updatedLines.push(`${indent}default_status: Plan`);
+            foundDefaultStatus = true;
           } else {
             updatedLines.push(line);
           }
@@ -287,18 +293,24 @@ function patchConfigAfterInit(sessionDir) {
           updatedLines.push('statuses: [Plan, Approve, Cancel, Doing, Done]');
         }
         
+        if (!foundDefaultStatus) {
+          // If default_status was not found, append it
+          updatedLines.push('default_status: Plan');
+        }
+        
         writeFileSync(configPath, updatedLines.join('\n'));
-        console.log("✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done");
+        console.log("✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done (default: Plan)");
       } else {
         // Parse JSON config
         const config = JSON.parse(configContent);
 
-        // Update statuses to Plan, Approve, Cancel, Doing, Done
+        // Update statuses and default_status
         config.statuses = ["Plan", "Approve", "Cancel", "Doing", "Done"];
+        config.default_status = "Plan";
 
         // Write the updated config back
         writeFileSync(configPath, JSON.stringify(config, null, 2));
-        console.log("✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done");
+        console.log("✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done (default: Plan)");
       }
     } else {
       console.log("Note: Config file not found after init, config patching skipped.");
