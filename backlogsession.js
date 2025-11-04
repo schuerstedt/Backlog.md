@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,7 +137,15 @@ if (isInitCommand) {
     // Auto-run init command
     const createdName = basename(sessionDir); // e.g. 2025-11-04-1
     const autoInitArgs = ["init", `Session ${createdName}` , "--defaults", "--agent-instructions", "none"];
-    const initChild = spawn("bun", [join(__dirname, "src", "cli.ts"), ...autoInitArgs], {
+    const compiledAvailable = (() => {
+      try {
+        const res = spawnSync("backlog", ["--version"], { stdio: "ignore" });
+        return res.status === 0;
+      } catch { return false; }
+    })();
+    const initCmd = compiledAvailable ? "backlog" : "bun";
+    const initArgs = compiledAvailable ? autoInitArgs : [join(__dirname, "src", "cli.ts"), ...autoInitArgs];
+    const initChild = spawn(initCmd, initArgs, {
       stdio: "inherit",
       cwd: sessionDir,
     });
@@ -171,9 +179,22 @@ if (process.env.BACKLOGSESSION_DEBUG === "1") {
 let backlogCommand;
 let argsToPass = rawArgs;
 
-// In development mode in this project, we run src/cli.ts with bun
-backlogCommand = "bun";
-argsToPass = [join(__dirname, "src", "cli.ts"), ...rawArgs];
+// Prefer compiled CLI if available, else fall back to dev runner
+const compiledAvailable = (() => {
+  try {
+    const res = spawnSync("backlog", ["--version"], { stdio: "ignore" });
+    return res.status === 0;
+  } catch { return false; }
+})();
+
+if (compiledAvailable) {
+  backlogCommand = "backlog";
+  argsToPass = [...rawArgs];
+} else {
+  // In development mode in this project, we run src/cli.ts with bun
+  backlogCommand = "bun";
+  argsToPass = [join(__dirname, "src", "cli.ts"), ...rawArgs];
+}
 
 // Handle the special 'init' command to patch the config after initialization
 if (rawArgs[0] === "init") {
