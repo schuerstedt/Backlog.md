@@ -160,6 +160,13 @@ if (isInitCommand) {
   }
 }
 
+// Optional debug logging
+if (process.env.BACKLOGSESSION_DEBUG === "1") {
+  console.error(`[backlogsession] cwd=${cwd}`);
+  console.error(`[backlogsession] sessionsParentDir=${sessionsParentDir}`);
+  console.error(`[backlogsession] using sessionDir=${sessionDir}`);
+}
+
 // Try to determine the backlog CLI path
 let backlogCommand;
 let argsToPass = rawArgs;
