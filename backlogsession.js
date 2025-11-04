@@ -4,6 +4,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createServer } from "node:net";
 
 // Get the directory name for the current file
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -150,9 +151,9 @@ if (isInitCommand) {
       cwd: sessionDir,
     });
     
-    initChild.on("exit", (code) => {
+    initChild.on("exit", async (code) => {
       if (code === 0) {
-        patchConfigAfterInit(sessionDir);
+        await patchConfigAfterInit(sessionDir);
         console.log(`✓ Session initialized: ${sessionDir}`);
         console.log("Now you can run your command again.");
       }
@@ -206,10 +207,10 @@ if (rawArgs[0] === "init") {
 
   // stdio is inherited; no need to manually forward streams
 
-  initChild.on("exit", (code) => {
+  initChild.on("exit", async (code) => {
     if (code === 0) {
       // If init succeeded, patch the config file
-      patchConfigAfterInit(sessionDir);
+      await patchConfigAfterInit(sessionDir);
     }
     process.exit(code || 0);
   });
@@ -244,8 +245,43 @@ if (rawArgs[0] === "init") {
   });
 }
 
+// Find a free port starting from startPort
+function findFreePort(startPort = 6420) {
+  return new Promise((resolve, reject) => {
+    const tryPort = (port) => {
+      if (port > 65535) {
+        reject(new Error('No free port found'));
+        return;
+      }
+      
+      const server = createServer();
+      
+      server.once('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          // Port is in use, try next one
+          tryPort(port + 1);
+        } else {
+          reject(err);
+        }
+      });
+      
+      server.once('listening', () => {
+        // Port is free
+        const freePort = server.address().port;
+        server.close(() => {
+          resolve(freePort);
+        });
+      });
+      
+      server.listen(port, '127.0.0.1');
+    };
+    
+    tryPort(startPort);
+  });
+}
+
 // Function to patch the config file after init
-function patchConfigAfterInit(sessionDir) {
+async function patchConfigAfterInit(sessionDir) {
   try {
     // Try both possible config file names: backlog.json and config.yml
     let configPath = join(sessionDir, "backlog.json");
@@ -264,12 +300,16 @@ function patchConfigAfterInit(sessionDir) {
     if (existsSync(configPath)) {
       const configContent = readFileSync(configPath, "utf8");
       
+      // Find a free port for this session
+      const freePort = await findFreePort(6420);
+      
       if (isYaml) {
-        // For YAML config, find and replace the statuses and default_status lines
+        // For YAML config, find and replace the statuses, default_status, and default_port lines
         const lines = configContent.split('\n');
         const updatedLines = [];
         let foundStatuses = false;
         let foundDefaultStatus = false;
+        let foundDefaultPort = false;
         
         for (const line of lines) {
           if (line.trim().startsWith('statuses:')) {
@@ -283,6 +323,11 @@ function patchConfigAfterInit(sessionDir) {
             const indent = line.match(/^\s*/)?.[0] || '';
             updatedLines.push(`${indent}default_status: "Plan"`);
             foundDefaultStatus = true;
+          } else if (line.trim().startsWith('default_port:')) {
+            // Replace default_port with the free port
+            const indent = line.match(/^\s*/)?.[0] || '';
+            updatedLines.push(`${indent}default_port: ${freePort}`);
+            foundDefaultPort = true;
           } else {
             updatedLines.push(line);
           }
@@ -298,19 +343,25 @@ function patchConfigAfterInit(sessionDir) {
           updatedLines.push('default_status: "Plan"');
         }
         
+        if (!foundDefaultPort) {
+          // If default_port was not found, append it
+          updatedLines.push(`default_port: ${freePort}`);
+        }
+        
         writeFileSync(configPath, updatedLines.join('\n'));
-        console.log("✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done (default: Plan)");
+        console.log(`✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done (default: Plan, port: ${freePort})`);
       } else {
         // Parse JSON config
         const config = JSON.parse(configContent);
 
-        // Update statuses and default_status
+        // Update statuses, default_status, and default_port
         config.statuses = ["Plan", "Approve", "Cancel", "Doing", "Done"];
         config.default_status = "Plan";
+        config.defaultPort = freePort;
 
         // Write the updated config back
         writeFileSync(configPath, JSON.stringify(config, null, 2));
-        console.log("✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done (default: Plan)");
+        console.log(`✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done (default: Plan, port: ${freePort})`);
       }
     } else {
       console.log("Note: Config file not found after init, config patching skipped.");
