@@ -13,8 +13,32 @@
   outputs = { self, nixpkgs, flake-utils, bun2nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        
+        # Use baseline Bun for x86_64-linux to support older CPUs without AVX2
+        # This fixes issue #412 where users with older CPUs (i7-3770, i7-3612QE)
+        # get "Illegal instruction" errors during the build process.
+        #
+        # The baseline build targets Nehalem architecture (2008+) with SSE4.2
+        # instead of Haswell (2013+) with AVX2, allowing builds on older hardware.
+        #
+        # Using an overlay to replace the Bun package maintains full compatibility
+        # with the standard Bun package structure (thanks to @erdosxx for this solution).
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = if system == "x86_64-linux" then
+            let bunVersion = "1.2.23"; in [
+              (final: prev: {
+                bun = prev.bun.overrideAttrs (oldAttrs: {
+                  src = prev.fetchurl {
+                    url = "https://github.com/oven-sh/bun/releases/download/bun-v${bunVersion}/bun-linux-x64-baseline.zip";
+                    sha256 = "017f89e19e1b40aa4c11a7cf671d3990cb51cc12288a43473238a019a8cafffc";
+                  };
+                });
+              })
+            ]
+          else
+            [];
+        };
+
         # Read version from package.json
         packageJson = builtins.fromJSON (builtins.readFile ./package.json);
         version = packageJson.version;
@@ -31,7 +55,7 @@
           src = ./.;
           packageJson = ./package.json;
           bunNix = ./bun.nix;
-          
+
           nativeBuildInputs = with pkgs; [ bun git rsync ];
           
           preBuild = ''
@@ -42,13 +66,13 @@
           
           buildPhase = ''
             runHook preBuild
-            
-            # Build CSS
+
+            # Build CSS (uses baseline Bun on x64 Linux via overlay)
             bun run build:css
-            
+
             # Build the CLI tool with embedded version
             bun build --compile --minify --define "__EMBEDDED_VERSION__=${version}" --outfile=dist/backlog src/cli.ts
-            
+
             runHook postBuild
           '';
           
@@ -102,7 +126,7 @@
             bun
             bun2nix.packages.${system}.default
           ];
-          
+
           buildInputs = with pkgs; [
             bun
             nodejs_20
