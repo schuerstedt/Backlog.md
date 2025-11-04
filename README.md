@@ -16,6 +16,7 @@ This fork adds a few optional quality-of-life tweaks on top of the upstream Back
 - **Automatic task diagrams (Windows)** – new tasks get a matching `backlog/images/<task>.excalidraw.svg` placeholder and an inline diagram link inside Implementation Notes, together with the VS Code deep link.
 - **One-click VS Code opener (Windows)** – every newly created task/draft injects an `[Open in Code](vscode://file/...)` link at the top of Implementation Notes so you can jump straight into editing the Markdown file locally.
 - **Label filters in the web UI** – board and task list views now include a multi-select label filter sourced from `config.yml` and existing task metadata.
+- **BacklogSession isolated workspaces** – run `backlogsession` commands in isolated session directories with custom workflow columns (Plan → Approve → Cancel → Doing → Done). Perfect for AI agents, experiments, or temporary planning. See [BACKLOGSESSION.md](BACKLOGSESSION.md) for details.
 - **Global CLI workflow documentation** – see `MARCUSCHANGELOG.md` for implementation details/merge notes and `MARCUSHOTTO.md` for step-by-step setup instructions to run these changes locally.
 
 Everything else remains upstream-compatible; if you prefer the vanilla experience, simply use the official repository.
