@@ -2,6 +2,120 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-11-05: Fixed BacklogSession Init Bug
+
+### Summary
+Fixed critical bugs in `backlogsession` where:
+1. Manual `init` command would create empty session directories without initializing the backlog structure
+2. Auto-initialization (when running commands without an existing session) would exit before running the intended command
+
+### Root Cause
+**Manual Init**: When running `backlogsession init "Session Name"`, the wrapper was passing all raw arguments (including "init") to the backlog command, resulting in `backlog init init "Session Name"` which failed silently.
+
+**Auto-Init**: The auto-initialization code used `spawn` and exited the process after init completed, preventing the original command from running. It also failed to properly await the config patching.
+
+### Changes Made
+
+**`backlogsession.js`**:
+1. Wrapped entire command delegation logic in async IIFE to support await (lines ~128-248)
+2. Fixed manual init arg construction (lines ~203-211): Properly passes args to compiled/dev versions
+3. Fixed auto-init to use `spawnSync` instead of `spawn` (lines ~154-161)
+4. Auto-init now continues to run the original command after initialization instead of exiting
+5. Added better error handling and exit code reporting for auto-init failures
+
+### Testing
+✅ `backlogsession init "Test Session"` creates proper directory structure with config.yml  
+✅ Auto-initialization works: `backlogsession browser` in fresh directory creates session and starts server  
+✅ Auto-initialization works: `backlogsession task list` creates session and runs command  
+✅ Config is properly patched with custom columns (Plan, Approve, Cancel, Doing, Done)  
+✅ Browser interface loads correctly with config at `/api/config`  
+✅ Globally installed and working  
+
+### Files Modified
+```
+backlogsession.js (major refactor of initialization logic)
+```
+
+---
+
+## 2025-11-05: VS Code Button in Web UI
+
+### Summary
+Added VS Code icon buttons to the web UI for tasks, documents, and decisions, allowing users to open files directly in VS Code with one click using the `vscode://file/` protocol. Removed automatic vscode:// link injection from markdown files as the UI button provides better UX.
+
+### Changes Made
+
+#### Backend Changes
+
+1. **`src/types/index.ts`**
+   - Added `filePath?: string` property to `Decision` interface (line 102)
+   - Added `filePath?: string` property to `Document` interface (line 118)
+   - Both are optional properties with JSDoc comments: "Absolute file path on disk (when available). Useful for opening in editors."
+
+2. **`src/server/index.ts`**
+   - Added import: `import { join } from "node:path"` (line 2)
+   - Added favicon route (line 167): Serves `/favicon.png` with proper Content-Type header
+   - Enhanced `handleGetTask()` (lines 569-596): Computes filePath using getTaskPath utility, wrapped in try/catch
+   - Enhanced `handleGetDoc()` (lines 722-732): Computes filePath from docsDir + doc.path, wrapped in try/catch
+   - Enhanced `handleGetDecision()` (lines 819-833): Uses Bun.Glob to find decision file path, wrapped in try/catch
+   - All filePath additions are safe with fallback behavior if computation fails
+
+3. **`src/file-system/operations.ts`**
+   - Modified `buildNotesBlock()` (line 29): Added null check `&& linkLine` to prevent undefined link injection
+   - Modified `saveTask()` (lines 227-246): Removed automatic vscode:// link generation, only adds diagram image
+   - Modified `saveDraft()` (lines 463-482): Same changes as saveTask for consistency
+   - Updated comments: "Open in Code link is now provided in the Web UI and no longer injected into new tasks"
+
+#### Frontend Changes
+
+1. **`src/web/components/TaskDetailsModal.tsx`**
+   - Added `resolvedTask` state (line 40): `const [resolvedTask, setResolvedTask] = useState<Task | undefined>(task)`
+   - Added useEffect (lines 127-135): Fetches full task details from server if filePath is missing
+   - Added VS Code icon button (lines 295-349): Official VS Code logo SVG with blue gradients
+   - Replaced `task` with `resolvedTask` in display sections (lines 507-577) for dates and metadata
+   - Icon details: w-5 h-5, colors #0065A9, #007ACC, #1F9CF0, filter IDs: vscode-mask, vscode-filter0, vscode-filter1
+
+2. **`src/web/components/DocumentationDetail.tsx`**
+   - Added VS Code icon button (lines 313-360): Same SVG structure as TaskDetailsModal
+   - Used unique filter IDs with `-doc` suffix to prevent conflicts: vscode-mask-doc, vscode-filter0-doc, vscode-filter1-doc
+   - Button only renders if `document?.filePath` exists
+
+3. **`src/web/components/DecisionDetail.tsx`**
+   - Removed redundant metadata display (lines 268-286)
+   - Removed "ID:" display and "Decision" label
+   - Kept only Date display for cleaner UI
+
+### Technical Details
+
+- **Protocol**: Uses `vscode://file/` URI scheme for opening files in VS Code
+- **Icon**: Official VS Code logo from Wikimedia Commons with proper 3D effect using SVG masks and gradients
+- **Backward Compatibility**: All filePath properties are optional, no breaking changes
+- **Error Handling**: All backend filePath computations wrapped in try/catch with fallbacks
+- **Path Encoding**: Uses `encodeURI()` and replaces backslashes for cross-platform compatibility
+
+### Testing Status
+- ✅ Builds successfully with `bun run build`
+- ✅ All code compiles without errors
+- ✅ Works perfectly in development mode (`bun run cli browser`)
+- ✅ Globally installed at `C:\Users\marcu\.bun\bin\backlog.exe` (version 1.18.5, 122.5 MB)
+
+### Files Modified
+```
+src/file-system/operations.ts
+src/server/index.ts
+src/types/index.ts
+src/web/components/TaskDetailsModal.tsx
+src/web/components/DocumentationDetail.tsx
+src/web/components/DecisionDetail.tsx
+```
+
+### Usage
+1. Open any task, document, or decision in the web UI
+2. Look for the blue VS Code icon button next to the Edit button
+3. Click to open the file directly in VS Code
+
+---
+
 ## 2025-11-04: BacklogSession Integration
 
 ### Summary

@@ -123,127 +123,129 @@ let sessionDir;
 const currentSessionDir = resolveCurrentSessionDir(cwd);
 const sessionsParentDir = resolveSessionsParentDir(cwd);
 
-if (isInitCommand) {
-  // For 'init' command, always create a new session
-  sessionDir = createNewSessionForToday(today, sessionsParentDir);
-} else {
-  // For other commands, use the last session for today, or auto-create if none exists
-  sessionDir = currentSessionDir || getLastSessionForToday(today, sessionsParentDir);
-  
-  if (!sessionDir) {
-    // No session exists for today - auto-initialize
-    console.log("No session found for today. Auto-initializing first session...");
+// Wrap in async IIFE to support await
+(async () => {
+  if (isInitCommand) {
+    // For 'init' command, always create a new session
     sessionDir = createNewSessionForToday(today, sessionsParentDir);
+  } else {
+    // For other commands, use the last session for today, or auto-create if none exists
+    sessionDir = currentSessionDir || getLastSessionForToday(today, sessionsParentDir);
     
-    // Auto-run init command
-    const createdName = basename(sessionDir); // e.g. 2025-11-04-1
-    const autoInitArgs = ["init", `Session ${createdName}` , "--defaults", "--agent-instructions", "none"];
-    const compiledAvailable = (() => {
-      try {
-        const res = spawnSync("backlog", ["--version"], { stdio: "ignore" });
-        return res.status === 0;
-      } catch { return false; }
-    })();
-    const initCmd = compiledAvailable ? "backlog" : "bun";
-    const initArgs = compiledAvailable ? autoInitArgs : [join(__dirname, "src", "cli.ts"), ...autoInitArgs];
-    const initChild = spawn(initCmd, initArgs, {
-      stdio: "inherit",
-      cwd: sessionDir,
-    });
-    
-    initChild.on("exit", async (code) => {
-      if (code === 0) {
+    if (!sessionDir) {
+      // No session exists for today - auto-initialize
+      console.log("No session found for today. Auto-initializing first session...");
+      sessionDir = createNewSessionForToday(today, sessionsParentDir);
+      
+      // Auto-run init command synchronously so we can continue with the original command
+      const createdName = basename(sessionDir); // e.g. 2025-11-04-1
+      const autoInitArgs = ["init", `Session ${createdName}` , "--defaults", "--agent-instructions", "none"];
+      const compiledAvailable = (() => {
+        try {
+          const res = spawnSync("backlog", ["--version"], { stdio: "ignore" });
+          return res.status === 0;
+        } catch { return false; }
+      })();
+      const initCmd = compiledAvailable ? "backlog" : "bun";
+      const initArgs = compiledAvailable ? autoInitArgs : [join(__dirname, "src", "cli.ts"), ...autoInitArgs];
+      
+      const initResult = spawnSync(initCmd, initArgs, {
+        stdio: "inherit",
+        cwd: sessionDir,
+      });
+      
+      if (initResult.status === 0) {
         await patchConfigAfterInit(sessionDir);
         console.log(`✓ Session initialized: ${sessionDir}`);
-        console.log("Now you can run your command again.");
+        // Continue with the original command - don't exit!
+      } else {
+        console.error(`Failed to auto-initialize session (exit code: ${initResult.status})`);
+        process.exit(initResult.status || 1);
+      }
+    }
+  }
+
+  // Optional debug logging
+  if (process.env.BACKLOGSESSION_DEBUG === "1") {
+    console.error(`[backlogsession] cwd=${cwd}`);
+    console.error(`[backlogsession] sessionsParentDir=${sessionsParentDir}`);
+    console.error(`[backlogsession] using sessionDir=${sessionDir}`);
+  }
+
+  // Try to determine the backlog CLI path
+  let backlogCommand;
+  let argsToPass = rawArgs;
+
+  // Prefer compiled CLI if available, else fall back to dev runner
+  const compiledAvailable = (() => {
+    try {
+      const res = spawnSync("backlog", ["--version"], { stdio: "ignore" });
+      return res.status === 0;
+    } catch { return false; }
+  })();
+
+  if (compiledAvailable) {
+    backlogCommand = "backlog";
+    argsToPass = [...rawArgs];
+  } else {
+    // In development mode in this project, we run src/cli.ts with bun
+    backlogCommand = "bun";
+    argsToPass = [join(__dirname, "src", "cli.ts"), ...rawArgs];
+  }
+
+  // Handle the special 'init' command to patch the config after initialization
+  if (rawArgs[0] === "init") {
+    // Run backlog init in the session directory
+    // For init command, we need to construct the args properly
+    const initArgs = compiledAvailable 
+      ? rawArgs  // For compiled version, pass all args including "init"
+      : [join(__dirname, "src", "cli.ts"), ...rawArgs]; // For dev mode, pass all args
+    
+    const initChild = spawn(backlogCommand, initArgs, {
+      stdio: "inherit", // Inherit TTY to support interactive prompts and proper UI
+      cwd: sessionDir,
+    });
+
+    // stdio is inherited; no need to manually forward streams
+
+    initChild.on("exit", async (code) => {
+      if (code === 0) {
+        // If init succeeded, patch the config file
+        await patchConfigAfterInit(sessionDir);
       }
       process.exit(code || 0);
     });
-    
+
     initChild.on("error", (err) => {
-      console.error("Failed to auto-initialize session:", err);
+      console.error("Failed to run backlog init:", err);
       process.exit(1);
     });
-    
-    process.exit(0); // Exit successfully after auto-initialization
+  } else {
+    // For all other commands, just pass them through to the session directory
+    const child = spawn(backlogCommand, argsToPass, {
+      stdio: "inherit", // Inherit TTY for full-screen UI and interactive commands
+      cwd: sessionDir,
+    });
+
+    // stdio is inherited; no need to manually forward streams
+
+    // Handle exit
+    child.on("exit", (code) => {
+      process.exit(code || 0);
+    });
+
+    // Handle errors
+    child.on("error", (err) => {
+      if (err.code === "ENOENT") {
+        console.error(`Command not found: ${backlogCommand}`);
+        console.error("Make sure Bun is installed and in your PATH");
+      } else {
+        console.error("Failed to start backlog:", err);
+      }
+      process.exit(1);
+    });
   }
-}
-
-// Optional debug logging
-if (process.env.BACKLOGSESSION_DEBUG === "1") {
-  console.error(`[backlogsession] cwd=${cwd}`);
-  console.error(`[backlogsession] sessionsParentDir=${sessionsParentDir}`);
-  console.error(`[backlogsession] using sessionDir=${sessionDir}`);
-}
-
-// Try to determine the backlog CLI path
-let backlogCommand;
-let argsToPass = rawArgs;
-
-// Prefer compiled CLI if available, else fall back to dev runner
-const compiledAvailable = (() => {
-  try {
-    const res = spawnSync("backlog", ["--version"], { stdio: "ignore" });
-    return res.status === 0;
-  } catch { return false; }
 })();
-
-if (compiledAvailable) {
-  backlogCommand = "backlog";
-  argsToPass = [...rawArgs];
-} else {
-  // In development mode in this project, we run src/cli.ts with bun
-  backlogCommand = "bun";
-  argsToPass = [join(__dirname, "src", "cli.ts"), ...rawArgs];
-}
-
-// Handle the special 'init' command to patch the config after initialization
-if (rawArgs[0] === "init") {
-  // Run backlog init in the session directory
-  const initChild = spawn(backlogCommand, argsToPass, {
-    stdio: "inherit", // Inherit TTY to support interactive prompts and proper UI
-    cwd: sessionDir,
-  });
-
-  // stdio is inherited; no need to manually forward streams
-
-  initChild.on("exit", async (code) => {
-    if (code === 0) {
-      // If init succeeded, patch the config file
-      await patchConfigAfterInit(sessionDir);
-    }
-    process.exit(code || 0);
-  });
-
-  initChild.on("error", (err) => {
-    console.error("Failed to run backlog init:", err);
-    process.exit(1);
-  });
-} else {
-  // For all other commands, just pass them through to the session directory
-  const child = spawn(backlogCommand, argsToPass, {
-    stdio: "inherit", // Inherit TTY for full-screen UI and interactive commands
-    cwd: sessionDir,
-  });
-
-  // stdio is inherited; no need to manually forward streams
-
-  // Handle exit
-  child.on("exit", (code) => {
-    process.exit(code || 0);
-  });
-
-  // Handle errors
-  child.on("error", (err) => {
-    if (err.code === "ENOENT") {
-      console.error(`Command not found: ${backlogCommand}`);
-      console.error("Make sure Bun is installed and in your PATH");
-    } else {
-      console.error("Failed to start backlog:", err);
-    }
-    process.exit(1);
-  });
-}
 
 // Find a free port starting from startPort
 function findFreePort(startPort = 6420) {

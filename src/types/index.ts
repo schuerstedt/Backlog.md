@@ -99,6 +99,8 @@ export interface Decision {
 	consequences: string;
 	alternatives?: string;
 	readonly rawContent: string; // Raw markdown content without frontmatter
+	/** Absolute file path on disk (when available). Useful for opening in editors. */
+	filePath?: string;
 }
 
 export interface Document {
@@ -113,6 +115,8 @@ export interface Document {
 	name?: string;
 	path?: string;
 	lastModified?: string;
+	/** Absolute file path on disk (when available). Useful for opening in editors. */
+	filePath?: string;
 }
 
 export type SearchResultType = "task" | "document" | "decision";

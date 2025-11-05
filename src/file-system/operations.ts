@@ -10,8 +10,7 @@ import { documentIdsEqual, normalizeDocumentId } from "../utils/document-id.ts";
 import { getTaskFilename, getTaskPath, normalizeTaskId } from "../utils/task-path.ts";
 import { sortByTaskId } from "../utils/task-sorting.ts";
 
-const DEFAULT_EXCALIDRAW_SVG =
-	`<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20"><!-- svg-source:excalidraw --><metadata><!-- payload-type:application/vnd.excalidraw+json --><!-- payload-version:2 --><!-- payload-start -->eyJ2ZXJzaW9uIjoiMSIsImVuY29kaW5nIjoiYnN0cmluZyIsImNvbXByZXNzZWQiOnRydWUsImVuY29kZWQiOiJ4nE2PQWvDMFxmhe/9XHUwMDE1wbt2ySj0Ulx1MDAxOIONXHUwMDFkt0uPo1x1MDAwN81WOlE7MraSrlxy+e+TvcGqg0DfXHUwMDEzek/zqmmMXFxcIppdY/DbgieX4GzWhU+YMvGg0qbOmcdk6+aXSMy7rlx1MDAwYpBOKNGDxXaiPILPMjri1nLoSDDkp9LfIeBj5OAktf8m9+hIOP16oceAg2S9/nGoXHUwMDA0YtxcdTAwMGJI8Zt1VnJM5PZ0LWTzsL5hglHZ9lx1MDAwNr2xw9dcdTAwMDE+PTpVes2Ff+pEeH5cdTAwMDZ7OiZcdTAwMWVcdTAwMDf3wl5cdTAwMTPoR3d9LaNLS7XvyWNJMy+r5Vx1MDAwN1x1MDAxMi1bgiJ9<!-- payload-end --></metadata><defs><style class=\"style-fonts\">\n      </style></defs><rect x=\"0\" y=\"0\" width=\"20\" height=\"20\" fill=\"#ffffff\"></rect></svg>`;
+const DEFAULT_EXCALIDRAW_SVG = `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20"><!-- svg-source:excalidraw --><metadata><!-- payload-type:application/vnd.excalidraw+json --><!-- payload-version:2 --><!-- payload-start -->eyJ2ZXJzaW9uIjoiMSIsImVuY29kaW5nIjoiYnN0cmluZyIsImNvbXByZXNzZWQiOnRydWUsImVuY29kZWQiOiJ4nE2PQWvDMFxmhe/9XHUwMDE1wbt2ySj0Ulx1MDAxOIONXHUwMDFkt0uPo1x1MDAwN81WOlE7MraSrlxy+e+TvcGqg0DfXHUwMDEzek/zqmmMXFxcIppdY/DbgieX4GzWhU+YMvGg0qbOmcdk6+aXSMy7rlx1MDAwYpBOKNGDxXaiPILPMjri1nLoSDDkp9LfIeBj5OAktf8m9+hIOP16oceAg2S9/nGoXHUwMDA0YtxcdTAwMGJI8Zt1VnJM5PZ0LWTzsL5hglHZ9lx1MDAwNr2xw9dcdTAwMDE+PTpVes2Ff+pEeH5cdTAwMDZ7OiZcdTAwMWVcdTAwMDf3wl5cdTAwMTPoR3d9LaNLS7XvyWNJMy+r5Vx1MDAwN1x1MDAxMi1bgiJ9<!-- payload-end --></metadata><defs><style class="style-fonts">\n      </style></defs><rect x="0" y="0" width="20" height="20" fill="#ffffff"></rect></svg>`;
 
 function buildNotesBlock(
 	imageLine: string | undefined,
@@ -26,7 +25,7 @@ function buildNotesBlock(
 		segments.push(imageLine);
 	}
 
-	if (!alreadyLinked && !trimmedExisting.includes(linkLine)) {
+	if (!alreadyLinked && linkLine && !trimmedExisting.includes(linkLine)) {
 		segments.push(linkLine);
 	}
 
@@ -35,11 +34,11 @@ function buildNotesBlock(
 	}
 
 	if (segments.length === 0) {
+		// If nothing to add, return existing or just the image (if present) without the link
 		if (trimmedExisting) return trimmedExisting;
-		if (imageLine && !alreadyLinked) {
-			return `${imageLine}\n\n${linkLine}`.trim();
-		}
-		return alreadyLinked ? trimmedExisting || linkLine : linkLine;
+		if (imageLine) return imageLine;
+		// If alreadyLinked=true and no image/existing, return empty or just the existing notes
+		return "";
 	}
 
 	return segments.join("\n\n").trim();
@@ -227,22 +226,16 @@ export class FileSystem {
 			diagramRelativePath = (await this.ensureTaskDiagram(filename))?.relativePath ?? null;
 		}
 
-		// On Windows, when creating a brand-new task, ensure Implementation Notes start with required links.
+		// On Windows, when creating a brand-new task, ensure Implementation Notes include the default diagram only.
+		// The "Open in Code" link is now provided in the Web UI and no longer injected into new tasks.
 		if (!fileExists && process.platform === "win32") {
 			try {
 				const sections = getStructuredSections(content);
 				const existingNotes = sections.implementationNotes?.trim() ?? "";
-				const alreadyLinked =
-					/vscode:\/\/file\//i.test(existingNotes) ||
-					/vscode:\/\/file\//i.test(sections.implementationNotes ?? "");
+				const imageLine = diagramRelativePath !== null ? `![${task.id} Diagram](${diagramRelativePath})` : undefined;
 
-				const vscodePath = filepath.replace(/\\/g, "/");
-				const linkLine = `[Open in Code](vscode://file/${encodeURI(vscodePath)})`;
-				const imageLine =
-					diagramRelativePath !== null ? `![${task.id} Diagram](${diagramRelativePath})` : undefined;
-
-				if (!alreadyLinked || imageLine) {
-					const updatedNotes = buildNotesBlock(imageLine, linkLine, existingNotes, alreadyLinked);
+				if (imageLine) {
+					const updatedNotes = buildNotesBlock(imageLine, "", existingNotes, true);
 					content = updateStructuredSections(content, {
 						description: sections.description ?? "",
 						implementationPlan: sections.implementationPlan ?? "",
@@ -468,21 +461,16 @@ export class FileSystem {
 			diagramRelativePath = (await this.ensureTaskDiagram(filename))?.relativePath ?? null;
 		}
 
+		// On Windows, when creating a brand-new draft, ensure Implementation Notes include the default diagram only.
+		// The "Open in Code" link is now provided in the Web UI and no longer injected into new tasks/drafts.
 		if (!fileExists && process.platform === "win32") {
 			try {
 				const sections = getStructuredSections(content);
 				const existingNotes = sections.implementationNotes?.trim() ?? "";
-				const alreadyLinked =
-					/vscode:\/\/file\//i.test(existingNotes) ||
-					/vscode:\/\/file\//i.test(sections.implementationNotes ?? "");
+				const imageLine = diagramRelativePath !== null ? `![${task.id} Diagram](${diagramRelativePath})` : undefined;
 
-				const vscodePath = filepath.replace(/\\/g, "/");
-				const linkLine = `[Open in Code](vscode://file/${encodeURI(vscodePath)})`;
-				const imageLine =
-					diagramRelativePath !== null ? `![${task.id} Diagram](${diagramRelativePath})` : undefined;
-
-				if (!alreadyLinked || imageLine) {
-					const updatedNotes = buildNotesBlock(imageLine, linkLine, existingNotes, alreadyLinked);
+				if (imageLine) {
+					const updatedNotes = buildNotesBlock(imageLine, "", existingNotes, true);
 					content = updateStructuredSections(content, {
 						description: sections.description ?? "",
 						implementationPlan: sections.implementationPlan ?? "",
