@@ -10,8 +10,13 @@ import { documentIdsEqual, normalizeDocumentId } from "../utils/document-id.ts";
 import { getTaskFilename, getTaskPath, normalizeTaskId } from "../utils/task-path.ts";
 import { sortByTaskId } from "../utils/task-sorting.ts";
 
+// DISABLED: Excalidraw diagram auto-creation feature
+// Uncomment below to re-enable automatic Excalidraw diagram creation for new tasks
+/*
 const DEFAULT_EXCALIDRAW_SVG = `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20"><!-- svg-source:excalidraw --><metadata><!-- payload-type:application/vnd.excalidraw+json --><!-- payload-version:2 --><!-- payload-start -->eyJ2ZXJzaW9uIjoiMSIsImVuY29kaW5nIjoiYnN0cmluZyIsImNvbXByZXNzZWQiOnRydWUsImVuY29kZWQiOiJ4nE2PQWvDMFxmhe/9XHUwMDE1wbt2ySj0Ulx1MDAxOIONXHUwMDFkt0uPo1x1MDAwN81WOlE7MraSrlxy+e+TvcGqg0DfXHUwMDEzek/zqmmMXFxcIppdY/DbgieX4GzWhU+YMvGg0qbOmcdk6+aXSMy7rlx1MDAwYpBOKNGDxXaiPILPMjri1nLoSDDkp9LfIeBj5OAktf8m9+hIOP16oceAg2S9/nGoXHUwMDA0YtxcdTAwMGJI8Zt1VnJM5PZ0LWTzsL5hglHZ9lx1MDAwNr2xw9dcdTAwMDE+PTpVes2Ff+pEeH5cdTAwMDZ7OiZcdTAwMWVcdTAwMDf3wl5cdTAwMTPoR3d9LaNLS7XvyWNJMy+r5Vx1MDAwN1x1MDAxMi1bgiJ9<!-- payload-end --></metadata><defs><style class="style-fonts">\n      </style></defs><rect x="0" y="0" width="20" height="20" fill="#ffffff"></rect></svg>`;
+*/
 
+/*
 function buildNotesBlock(
 	imageLine: string | undefined,
 	linkLine: string,
@@ -43,6 +48,7 @@ function buildNotesBlock(
 
 	return segments.join("\n\n").trim();
 }
+*/
 
 // Interface for task path resolution context
 interface TaskPathContext {
@@ -191,6 +197,7 @@ export class FileSystem {
 		}
 	}
 
+	/* DISABLED: Excalidraw diagram auto-creation feature
 	private async ensureTaskDiagram(filename: string): Promise<{ absolutePath: string; relativePath: string } | null> {
 		try {
 			const backlogDir = await this.getBacklogDir();
@@ -211,6 +218,7 @@ export class FileSystem {
 			return null;
 		}
 	}
+	*/
 
 	// Task operations
 	async saveTask(task: Task): Promise<string> {
@@ -218,9 +226,10 @@ export class FileSystem {
 		const filename = `${taskId} - ${this.sanitizeFilename(task.title)}.md`;
 		const tasksDir = await this.getTasksDir();
 		const filepath = join(tasksDir, filename);
-		let content = serializeTask(task);
+		const content = serializeTask(task);
 		const fileExists = await Bun.file(filepath).exists();
 
+		/* DISABLED: Excalidraw diagram auto-creation feature
 		let diagramRelativePath: string | null = null;
 		if (!fileExists) {
 			diagramRelativePath = (await this.ensureTaskDiagram(filename))?.relativePath ?? null;
@@ -246,6 +255,7 @@ export class FileSystem {
 				// Best-effort only; ignore if anything goes wrong
 			}
 		}
+		*/
 
 		// Delete any existing task files with the same ID but different filenames
 		try {
@@ -453,9 +463,10 @@ export class FileSystem {
 		const filename = `${taskId} - ${this.sanitizeFilename(task.title)}.md`;
 		const draftsDir = await this.getDraftsDir();
 		const filepath = join(draftsDir, filename);
-		let content = serializeTask(task);
+		const content = serializeTask(task);
 		const fileExists = await Bun.file(filepath).exists();
 
+		/* DISABLED: Excalidraw diagram auto-creation feature
 		let diagramRelativePath: string | null = null;
 		if (!fileExists) {
 			diagramRelativePath = (await this.ensureTaskDiagram(filename))?.relativePath ?? null;
@@ -481,6 +492,7 @@ export class FileSystem {
 				// Best-effort only; ignore if anything goes wrong
 			}
 		}
+		*/
 
 		try {
 			const core = { filesystem: { tasksDir: draftsDir } };
