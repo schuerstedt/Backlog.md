@@ -2,6 +2,36 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-11-05: Fixed VS Code Button for Documents
+
+### Summary
+Fixed bug where VS Code edit button was not appearing on documents and decisions because the `filePath` property was not being computed in the API endpoints. Also enhanced tasks to ensure they consistently have filePath.
+
+### Root Cause
+The `handleGetDoc()` and `handleGetDecision()` methods in `src/server/index.ts` were returning data without computing the `filePath` property. While the frontend components had the VS Code button implemented, they only render when the `filePath` property exists.
+
+### Changes Made
+**`src/server/index.ts`**:
+1. Added import: `import { join } from "node:path"` (line 3)
+2. Added import: `import { getTaskPath } from "../utils/task-path.ts"` (line 10)
+3. Enhanced `handleGetTask()` (lines 569-604): Computes filePath using getTaskPath utility for both fallback and regular task returns, wrapped in try/catch
+4. Enhanced `handleGetDoc()` (lines 719-738): Computes filePath from `docsDir + doc.path`, wrapped in try/catch with fallback behavior
+5. Enhanced `handleGetDecision()` (lines 840-858): Uses Bun.Glob to find decision file path matching `${normalizedId}*.md`, wrapped in try/catch
+
+All filePath computations are wrapped in try/catch with fallback behavior if computation fails, ensuring backward compatibility.
+
+### Testing
+✅ Builds successfully with `bun run build`  
+✅ No TypeScript compilation errors  
+✅ VS Code button should now appear on task, document, and decision detail pages  
+
+### Files Modified
+```
+src/server/index.ts
+```
+
+---
+
 ## 2025-11-05: Fixed BacklogSession Init Bug
 
 ### Summary

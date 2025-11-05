@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { Server, ServerWebSocket } from "bun";
 import { $ } from "bun";
 import { Core } from "../core/backlog.ts";
@@ -6,6 +7,7 @@ import type { SearchService } from "../core/search-service.ts";
 import { getTaskStatistics } from "../core/statistics.ts";
 import type { SearchPriorityFilter, SearchResultType, Task, TaskUpdateInput } from "../types/index.ts";
 import { watchConfig } from "../utils/config-watcher.ts";
+import { getTaskPath } from "../utils/task-path.ts";
 import { getVersion } from "../utils/version.ts";
 
 const TASK_ID_PREFIX = "task-";
@@ -454,10 +456,7 @@ export class BacklogServer {
 			const typeParams = [...url.searchParams.getAll("type"), ...url.searchParams.getAll("types")];
 			const statusParams = url.searchParams.getAll("status");
 			const priorityParamsRaw = url.searchParams.getAll("priority");
-			const labelParamsRaw = [
-				...url.searchParams.getAll("label"),
-				...url.searchParams.getAll("labels"),
-			];
+			const labelParamsRaw = [...url.searchParams.getAll("label"), ...url.searchParams.getAll("labels")];
 
 			let limit: number | undefined;
 			if (limitParam) {
@@ -511,9 +510,7 @@ export class BacklogServer {
 			}
 
 			if (labelParamsRaw.length > 0) {
-				const normalizedLabels = labelParamsRaw
-					.map((value) => value.trim())
-					.filter((value) => value.length > 0);
+				const normalizedLabels = labelParamsRaw.map((value) => value.trim()).filter((value) => value.length > 0);
 				if (normalizedLabels.length > 0) {
 					filters.labels = normalizedLabels.length === 1 ? normalizedLabels[0] : normalizedLabels;
 				}
@@ -573,11 +570,35 @@ export class BacklogServer {
 			const fallback = await this.core.filesystem.loadTask(fallbackId);
 			if (fallback) {
 				store.upsertTask(fallback);
-				return Response.json(fallback);
+				// Compute filePath for VS Code integration
+				let taskWithPath = fallback;
+				try {
+					const filePath = await getTaskPath(fallback.id, this.core);
+					if (filePath) {
+						taskWithPath = { ...fallback, filePath };
+					}
+				} catch (error) {
+					console.error("Error computing task filePath:", error);
+					// Continue without filePath - it's optional
+				}
+				return Response.json(taskWithPath);
 			}
 			return Response.json({ error: "Task not found" }, { status: 404 });
 		}
-		return Response.json(task);
+
+		// Compute filePath for VS Code integration
+		let taskWithPath = task;
+		try {
+			const filePath = await getTaskPath(task.id, this.core);
+			if (filePath) {
+				taskWithPath = { ...task, filePath };
+			}
+		} catch (error) {
+			console.error("Error computing task filePath:", error);
+			// Continue without filePath - it's optional
+		}
+
+		return Response.json(taskWithPath);
 	}
 
 	private async handleUpdateTask(req: Request, taskId: string): Promise<Response> {
@@ -706,7 +727,19 @@ export class BacklogServer {
 			if (!doc) {
 				return Response.json({ error: "Document not found" }, { status: 404 });
 			}
-			return Response.json(doc);
+
+			// Compute filePath for VS Code integration
+			let docWithPath = doc;
+			try {
+				const relativePath = doc.path ?? `${doc.id}.md`;
+				const filePath = join(this.core.filesystem.docsDir, relativePath);
+				docWithPath = { ...doc, filePath };
+			} catch (error) {
+				console.error("Error computing document filePath:", error);
+				// Continue without filePath - it's optional
+			}
+
+			return Response.json(docWithPath);
 		} catch (error) {
 			console.error("Error loading document:", error);
 			return Response.json({ error: "Document not found" }, { status: 404 });
@@ -795,7 +828,22 @@ export class BacklogServer {
 				return Response.json({ error: "Decision not found" }, { status: 404 });
 			}
 
-			return Response.json(decision);
+			// Compute filePath for VS Code integration
+			let decisionWithPath = decision;
+			try {
+				const decisionsDir = this.core.filesystem.decisionsDir;
+				const glob = new Bun.Glob(`${normalizedId}*.md`);
+				const matches = Array.from(glob.scanSync(decisionsDir));
+				if (matches.length > 0 && matches[0]) {
+					const filePath = join(decisionsDir, matches[0]);
+					decisionWithPath = { ...decision, filePath };
+				}
+			} catch (error) {
+				console.error("Error computing decision filePath:", error);
+				// Continue without filePath - it's optional
+			}
+
+			return Response.json(decisionWithPath);
 		} catch (error) {
 			console.error("Error loading decision:", error);
 			return Response.json({ error: "Decision not found" }, { status: 404 });

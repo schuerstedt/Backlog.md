@@ -20,14 +20,28 @@ This is essential for tracking what has been modified and why.
    ```
 
 ## Making Changes Available Globally
-After making code changes, build and update the global Bun installation:
 
-```powershell
-bun run build
-Copy-Item .\dist\backlog.exe C:\Users\marcu\.bun\bin\backlog.exe -Force
-```
+⚠️ **IMPORTANT FOR UAT**: After making ANY code changes, you MUST deploy the new build globally for User Acceptance Testing!
 
-Repeat these commands after any code change that should propagate globally.
+### Build and Deploy Steps:
+1. Build the project:
+   ```powershell
+   bun run build
+   ```
+
+2. **If backlog is currently running** (browser server, etc.), stop all backlog processes first:
+   - Close any browser windows running the backlog server
+   - Kill any terminal processes running backlog commands
+   - Wait a few seconds for the file lock to release
+
+3. Copy the new executable to global location:
+   ```powershell
+   Copy-Item .\dist\backlog.exe C:\Users\marcu\.bun\bin\backlog.exe -Force
+   ```
+
+**Repeat these steps after ANY code change that needs UAT!**
+
+**Common Issue**: If you get "process cannot access the file", it means backlog.exe is still running. Close all backlog processes and wait before retrying the copy command.
 
 **Note**: Verify the correct executable is being used:
 ```powershell
