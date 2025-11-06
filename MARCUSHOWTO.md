@@ -80,6 +80,43 @@ backlog --version      # Should reflect repo version (e.g., 1.17.4)
 
 ## Custom Features Quick Reference
 
+### Auto-Initialization Commands (bls init)
+New sessions automatically execute commands from `backlogsession/initcommands.md`:
+
+```powershell
+# Initialize new session - runs setup commands automatically
+bls init
+
+# Default commands create:
+# - Task #1: "On Session Start" (2 AC)
+# - Task #2: "On Session End" (3 AC)  
+# - Document: "Session Goal"
+# - Document: "Session User Notes"
+# - Opens browser
+```
+
+**Customization**:
+Edit `F:\Backlog.md\backlogsession\initcommands.md` to customize default commands:
+```markdown
+# Initialization Commands
+
+## Default Commands:
+
+```bash
+bls task create "On Session Start" --ac "git branch for session created" --ac "Session Goal template filled"
+bls task create "On Session End" --ac "Chat history copied to session docs" --ac "Session summary written to session docs" --ac "git merged"
+bls doc create "Session Goal"
+bls doc create "Session User Notes"
+bls browser
+```
+```
+
+**How it works**:
+- Commands are parsed from bash/sh/shell code blocks in markdown
+- Lines starting with `#` are treated as comments
+- All commands execute in session directory context
+- Failures are logged but don't stop execution
+
 ### Editing Acceptance Criteria (--edit-ac)
 Edit individual acceptance criteria without replacing all of them:
 

@@ -156,6 +156,7 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
       
       if (initResult.status === 0) {
         await patchConfigAfterInit(sessionDir);
+        await executeInitCommands(sessionDir);
         console.log(`✓ Session initialized: ${sessionDir}`);
         // Continue with the original command - don't exit!
       } else {
@@ -195,11 +196,14 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
 
   // Handle the special 'init' command to patch the config after initialization
   if (rawArgs[0] === "init") {
+    // Auto-generate session name with defaults
+    const createdName = basename(sessionDir); // e.g. 2025-11-06-9
+    const autoInitArgs = ["init", `Session ${createdName}`, "--defaults", "--agent-instructions", "none"];
+    
     // Run backlog init in the session directory
-    // For init command, we need to construct the args properly
     const initArgs = compiledAvailable 
-      ? rawArgs  // For compiled version, pass all args including "init"
-      : [join(__dirname, "src", "cli.ts"), ...rawArgs]; // For dev mode, pass all args
+      ? autoInitArgs  // For compiled version, use auto-generated args
+      : [join(__dirname, "src", "cli.ts"), ...autoInitArgs]; // For dev mode, use auto-generated args
     
     const initChild = spawn(backlogCommand, initArgs, {
       stdio: "inherit", // Inherit TTY to support interactive prompts and proper UI
@@ -212,6 +216,8 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
       if (code === 0) {
         // If init succeeded, patch the config file
         await patchConfigAfterInit(sessionDir);
+        // Execute initialization commands if initcommands.md exists
+        await executeInitCommands(sessionDir);
       }
       process.exit(code || 0);
     });
@@ -246,6 +252,83 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
     });
   }
 })();
+
+// Execute commands from initcommands.md if it exists
+async function executeInitCommands(sessionDir) {
+  const backlogsessionDir = dirname(sessionDir);
+  const initCommandsPath = join(backlogsessionDir, "initcommands.md");
+  
+  // Create default initcommands.md if it doesn't exist
+  if (!existsSync(initCommandsPath)) {
+    const defaultCommands = `# Initialization Commands
+
+These commands are executed automatically after \`bls init\` completes successfully.
+
+## Default Commands:
+
+\`\`\`bash
+bls task create "On Session Start" --ac "git branch for session created" --ac "Session Goal template filled"
+bls task create "On Session End" --ac "Chat history copied to session docs" --ac "Session summary written to session docs" --ac "git merged"
+bls doc create "Session Goal"
+bls doc create "Session User Notes"
+bls browser
+\`\`\`
+`;
+    writeFileSync(initCommandsPath, defaultCommands, "utf8");
+    console.log(`✓ Created default initcommands.md at ${initCommandsPath}`);
+  }
+  
+  // Read and parse the initcommands.md file
+  try {
+    const content = readFileSync(initCommandsPath, "utf8");
+    
+    // Extract commands from code blocks
+    const codeBlockRegex = /```(?:bash|sh|shell)?\n([\s\S]*?)```/g;
+    const commands = [];
+    let match;
+    
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      const block = match[1];
+      // Split by lines and filter out empty lines and comments
+      const lines = block.split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+      commands.push(...lines);
+    }
+    
+    if (commands.length === 0) {
+      console.log("No commands found in initcommands.md");
+      return;
+    }
+    
+    console.log(`\n✓ Executing ${commands.length} initialization command(s)...`);
+    
+    // Execute each command sequentially in the session directory
+    for (const command of commands) {
+      console.log(`  → ${command}`);
+      
+      try {
+        // Execute the command directly through the shell
+        // This preserves quoted arguments properly
+        const result = spawnSync(command, {
+          cwd: sessionDir,
+          stdio: 'inherit',
+          shell: true,
+        });
+        
+        if (result.status !== 0) {
+          console.error(`  ✗ Command failed with exit code ${result.status}`);
+        }
+      } catch (err) {
+        console.error(`  ✗ Failed to execute command: ${err.message}`);
+      }
+    }
+    
+    console.log("✓ Initialization commands completed\n");
+  } catch (err) {
+    console.error(`Error executing init commands: ${err.message}`);
+  }
+}
 
 // Find a free port starting from startPort
 function findFreePort(startPort = 6420) {

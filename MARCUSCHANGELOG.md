@@ -2,6 +2,61 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-11-06: Added Auto-Initialization Commands to bls init
+
+### Summary
+Added automatic command execution feature to `bls init`. After a session is initialized, commands from `backlogsession/initcommands.md` are automatically executed to set up default tasks, documents, and browser.
+
+### Motivation
+Every session needed manual setup of:
+- Task #1 "On Session Start" with 2 AC
+- Task #2 "On Session End" with 3 AC  
+- Session Goal document
+- Session User Notes document
+- Browser launch
+
+This feature automates the setup by executing commands from a customizable markdown file.
+
+### Changes Made
+
+**backlogsession.js:**
+1. Added `executeInitCommands(sessionDir)` function (lines ~255-330):
+   - Creates default `initcommands.md` template if not exists in `backlogsession/` folder
+   - Default commands:
+     - `bls task create "On Session Start" --ac "git branch for session created" --ac "Session Goal template filled"`
+     - `bls task create "On Session End" --ac "Chat history copied to session docs" --ac "Session summary written to session docs" --ac "git merged"`
+     - `bls doc create "Session Goal"`
+     - `bls doc create "Session User Notes"`
+     - `bls browser`
+   - Parses markdown code blocks (bash/sh/shell) using regex
+   - Filters out comments and empty lines
+   - Executes commands sequentially using `spawnSync` with `shell: true`
+   - All commands execute in session directory context
+
+2. Added `executeInitCommands` call after `patchConfigAfterInit` in both init paths:
+   - Manual `bls init` (line ~219)
+   - Auto-init when session created (line ~158)
+
+**backlogsession/initcommands.md:**
+- Created template file with default commands in bash code blocks
+- Commands are parsed from markdown, so file can include documentation
+- Customizable - users can edit to add/remove/modify commands
+
+### Usage
+```bash
+# Initialize new session - commands execute automatically
+bls init
+
+# Customize commands by editing
+# F:\Backlog.md\backlogsession\initcommands.md
+```
+
+### Technical Notes
+- Commands execute with `shell: true` to preserve quoted argument handling
+- Regex extracts commands from code blocks: `/```(?:bash|sh|shell)?\n([\s\S]*?)```/g`
+- Comments (lines starting with `#`) are filtered out
+- Each command runs sequentially; failures are logged but don't stop execution
+
 ## 2025-11-06: Added --edit-ac Feature for Editing Acceptance Criteria
 
 ### Summary

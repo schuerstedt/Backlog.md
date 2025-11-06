@@ -22,7 +22,10 @@ Plan → Approved → Doing → Done
 
 **Session Management:**
 
-- `bls init` - Initialize a new session (sessions are stored in `backlogsession/YYYY-MM-DD-#`, e.g. `2025-11-06-1`)
+- `bls init` - Initialize a new session (automatically creates session with format `backlogsession/YYYY-MM-DD-#`, e.g. `2025-11-06-1`)
+  - Sessions are auto-created for today's date
+  - Multiple sessions per day are numbered sequentially (e.g., `2025-11-06-1`, `2025-11-06-2`)
+  - **Do not** specify a session name - it's auto-generated
 
 **Task Creation:**
 
@@ -67,10 +70,15 @@ A new session is initialized when the user asks for it. `bls` automatically crea
 
 ### Task Creation and Approval Process:
 
-1. **Software Agent (SA) creates task** - SA MUST create a task with Acceptance Criteria (AC) BEFORE discussing the task with the user
+1. **Software Agent (SA) creates task(s)** - SA MUST create a task with Acceptance Criteria (AC) BEFORE discussing the task with the user
+   - **Break down work into multiple atomic tasks** - When user requests a feature, SA should create MULTIPLE small tasks rather than one large task
+   - Each task should be as atomic as possible and not exceed more than 5 AC
+   - If a feature requires more than 5 AC, break it into several separate tasks
+   - If not stated otherwise, the last AC must be a user UAT
+   - SA can assume the user has the board view open and can see all tasks
 2. **SA discusses with user** - SA changes AC during discussion with the user
 3. **User approves** - Once user approves, SA sets the status to `Approved, user can approve tasks by using the task board manually`
-4. **SA starts work** - SA can start working on approved tasks after user agrees, moving them to `Doing`
+4. **SA starts work** - SA can start working on approved tasks after user agrees, moving them to `Doing - SA should inform the user once an AC is met and update the task`
 5. **SA completes work** - SA moves tasks to `Done` once User Acceptance Testing (UAT) is approved
 6. **User disapproves** - If user disapproves a task, it is set to `Canceled`
 
@@ -78,6 +86,7 @@ A new session is initialized when the user asks for it. `bls` automatically crea
 
 - All AC of a task MUST be met by the SA before a task is set to `Done`, except when user agrees on a different flow
 - SA can use `bls` for its internal planning (creating new tasks internally etc), but it is recommended that SA uses its own internal planning tools for actual execution during `Doing`
+- **CRITICAL**: Once a task is in `Approved` status, SA MUST NEVER change the Acceptance Criteria without explicit user approval. If AC need modification after approval, SA must discuss with user first and get permission before making any changes.
 
 ### Special Tasks (Not Yet Implemented):
 
