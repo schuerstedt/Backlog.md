@@ -1,11 +1,13 @@
 ---
 id: task-1
 title: On Session Start
-status: Plan
+status: Done
 assignee: []
 created_date: '2025-11-06 13:29'
+updated_date: '2025-11-06 13:53'
 labels: []
 dependencies: []
+ordinal: 1000
 ---
 
 ## Acceptance Criteria

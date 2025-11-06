@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
 import { $, spawn } from "bun";
@@ -2392,6 +2392,28 @@ docCmd
 			await scrollableViewer(content);
 		} catch {
 			console.error(`Document ${docId} not found.`);
+		}
+	});
+
+// Document getpath command
+docCmd
+	.command("getpath <docId>")
+	.description("get the absolute file path to a document")
+	.action(async (docId: string) => {
+		const cwd = process.cwd();
+		const core = new Core(cwd);
+		try {
+			const document = await core.getDocument(docId);
+			if (!document) {
+				console.error(`Document ${docId} not found.`);
+				process.exit(1);
+			}
+			const relativePath = document.path ?? `${document.id}.md`;
+			const absolutePath = join(core.filesystem.docsDir, relativePath);
+			console.log(absolutePath);
+		} catch (error) {
+			console.error(`Error retrieving document path: ${error}`);
+			process.exit(1);
 		}
 	});
 

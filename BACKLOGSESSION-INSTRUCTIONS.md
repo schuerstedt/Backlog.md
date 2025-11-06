@@ -62,6 +62,15 @@ Options:
   --depends-on <taskIds>            Set task dependencies (comma-separated or use multiple times)
 ```
 
+** Doc files operations **
+
+```
+bls doc create <title>              Create a doc and return the doc id
+bls doc list --plain                List all docs: docID - Title
+bls doc getpath <docID>             Get the filesystem path to the doc for SA editing 
+
+```
+
 ## Workflow:
 
 ### Session Initialization:
