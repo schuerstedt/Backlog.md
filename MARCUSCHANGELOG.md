@@ -2,6 +2,119 @@
 
 This file documents local customizations so they can be re-applied or merged safely when upstream updates are pulled.
 
+## 2025-11-06: Added --edit-ac Feature for Editing Acceptance Criteria
+
+### Summary
+Added a new `--edit-ac` CLI option to the `task edit` command that allows editing the text of existing acceptance criteria directly from the command line without replacing all criteria or opening an editor.
+
+### Motivation
+Previously, to edit acceptance criteria text, you had to either:
+1. Use `--ac` which replaces ALL criteria (losing existing ones)
+2. Open the file in an editor manually
+
+This new feature allows surgical edits to individual criteria while preserving all other criteria, their order, and their checked state.
+
+### Changes Made
+
+**Type Definitions:**
+1. **`src/types/index.ts`** (line ~85):
+   - Added `editAcceptanceCriteria?: Array<{ index: number; text: string }>` to `TaskUpdateInput` interface
+
+2. **`src/types/task-edit-args.ts`** (line ~23):
+   - Added `acceptanceCriteriaEdit?: Array<{ index: number; text: string }>` to `TaskEditArgs` interface
+
+**CLI Command:**
+3. **`src/cli.ts`** (line ~1686):
+   - Added `--edit-ac <spec>` option to `task edit` command
+   - Format: `"<index>:<text>"` (e.g., `"1:New text"`)
+   - Can be used multiple times to edit multiple criteria in one command
+   - Added parsing logic (lines ~1793-1819) that validates:
+     - Format is `index:text` with colon separator
+     - Index is a positive integer
+     - Text is not empty
+   - Added `editCriteria` to `editArgs` construction (line ~1896)
+
+**Business Logic:**
+4. **`src/utils/task-edit-builder.ts`** (lines ~128-132):
+   - Added handling for `acceptanceCriteriaEdit` in `buildTaskUpdateInput` function
+   - Maps edit objects to the update input with trimmed text
+
+5. **`src/core/backlog.ts`** (lines ~878-894):
+   - Implemented `editCriteria` function that:
+     - Finds criteria by index
+     - Updates the text while preserving checked state
+     - Validates all indices exist
+     - Only marks task as mutated if text actually changes
+   - Called before check/uncheck operations to ensure edits happen first
+
+**Tests:**
+6. **`src/test/task-edit-ac.test.ts`** (new file):
+   - Comprehensive test suite with 9 tests covering:
+     - Editing single criterion
+     - Editing multiple criteria in one command
+     - Preserving checked state when editing
+     - Handling special characters in text
+     - Error handling for non-existent indices
+     - Error handling for invalid format
+     - Error handling for non-numeric indices
+     - Preserving other sections (description, plan, notes)
+     - Plain output flag support
+
+### Usage Examples
+
+```powershell
+# Edit a single acceptance criterion
+bls task edit 1 --edit-ac "1:Updated text for first criterion"
+
+# Edit multiple criteria in one command
+bls task edit 1 --edit-ac "1:New first" --edit-ac "2:New second"
+
+# Edit with special characters
+bls task edit 1 --edit-ac "1:Must support @mentions & 'quotes'"
+
+# Combine with other edits
+bls task edit 1 --edit-ac "1:Updated AC" --check-ac 2 --status Doing
+
+# View result immediately
+bls task edit 1 --edit-ac "1:Updated" --plain
+```
+
+### Format Details
+- **Required format**: `"<index>:<text>"`
+- **Index**: 1-based positive integer matching the criterion number
+- **Text**: Can contain any characters including spaces, quotes, special chars
+- **Error cases**:
+  - Invalid format (no colon): `--edit-ac format error. Use "<index>:<text>"`
+  - Non-numeric index: `Invalid acceptance criterion index: {value}. Must be a positive integer.`
+  - Non-existent index: `Acceptance criterion #{index} not found`
+
+### Behavior
+- ✅ Preserves checked/unchecked state of the criterion
+- ✅ Preserves all other criteria unchanged
+- ✅ Preserves criterion order and indices
+- ✅ Preserves all other task sections (description, plan, notes, etc.)
+- ✅ Only updates the task if text actually changes
+- ✅ Can be combined with other edit flags in same command
+
+### Testing
+✅ All 9 comprehensive tests pass  
+✅ Builds successfully with `bun run build`  
+✅ No TypeScript compilation errors  
+✅ Tested with `bls` command after global installation  
+✅ Error handling validated for all edge cases  
+
+### Files Modified
+```
+src/types/index.ts
+src/types/task-edit-args.ts
+src/cli.ts
+src/utils/task-edit-builder.ts
+src/core/backlog.ts
+src/test/task-edit-ac.test.ts (new)
+```
+
+---
+
 ## 2025-11-05: Fixed VS Code Button for Documents
 
 ### Summary

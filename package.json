@@ -9,7 +9,7 @@
 	],
 	"bin": {
 		"backlog": "scripts/cli.cjs",
-		"backlogsession": "backlogsession.js"
+		"bls": "backlogsession.js"
 	},
 	"optionalDependencies": {
 		"backlog.md-darwin-arm64": "*",

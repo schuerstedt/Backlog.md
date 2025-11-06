@@ -120,6 +120,13 @@ export function buildTaskUpdateInput(args: TaskEditArgs): TaskUpdateInput {
 		updateInput.removeAcceptanceCriteria = [...args.acceptanceCriteriaRemove];
 	}
 
+	if (Array.isArray(args.acceptanceCriteriaEdit) && args.acceptanceCriteriaEdit.length > 0) {
+		updateInput.editAcceptanceCriteria = args.acceptanceCriteriaEdit.map((edit) => ({
+			index: edit.index,
+			text: String(edit.text).trim(),
+		}));
+	}
+
 	if (Array.isArray(args.acceptanceCriteriaCheck) && args.acceptanceCriteriaCheck.length > 0) {
 		updateInput.checkAcceptanceCriteria = [...args.acceptanceCriteriaCheck];
 	}

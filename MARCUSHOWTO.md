@@ -77,3 +77,27 @@ backlog --version      # Should reflect repo version (e.g., 1.17.4)
   Then re-copy the binary.
 
 - `bunx tsc --noEmit` currently fails on upstream test fixtures missing a required `id` in `src/test/core.test.ts`. This is a known issue unrelated to the custom changes. You can ignore for now or patch upstream tests if needed.
+
+## Custom Features Quick Reference
+
+### Editing Acceptance Criteria (--edit-ac)
+Edit individual acceptance criteria without replacing all of them:
+
+```powershell
+# Edit a single criterion (format: "index:text")
+bls task edit 1 --edit-ac "1:Updated text for first criterion"
+
+# Edit multiple criteria at once
+bls task edit 1 --edit-ac "1:New first" --edit-ac "2:New second"
+
+# Combine with other edits
+bls task edit 1 --edit-ac "1:Updated AC" --check-ac 2 --status Doing
+```
+
+**Features**:
+- ✅ Preserves checked/unchecked state
+- ✅ Preserves all other criteria unchanged
+- ✅ Can edit multiple criteria in one command
+- ✅ Format: `"<index>:<text>"` where index is 1-based
+
+See `MARCUSCHANGELOG.md` for complete documentation.

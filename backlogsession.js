@@ -319,7 +319,7 @@ async function patchConfigAfterInit(sessionDir) {
             // Replace the statuses line with our custom ones
             // Preserve the original indentation
             const indent = line.match(/^\s*/)?.[0] || '';
-            updatedLines.push(`${indent}statuses: ["Plan", "Approve", "Cancel", "Doing", "Done"]`);
+            updatedLines.push(`${indent}statuses: ["Plan", "Approved", "Canceled", "Doing", "Done"]`);
             foundStatuses = true;
           } else if (line.trim().startsWith('default_status:')) {
             // Replace default_status with "Plan"
@@ -338,7 +338,7 @@ async function patchConfigAfterInit(sessionDir) {
         
         if (!foundStatuses) {
           // If statuses line was not found, append it
-          updatedLines.push('statuses: ["Plan", "Approve", "Cancel", "Doing", "Done"]');
+          updatedLines.push('statuses: ["Plan", "Approved", "Canceled", "Doing", "Done"]');
         }
         
         if (!foundDefaultStatus) {
@@ -352,19 +352,19 @@ async function patchConfigAfterInit(sessionDir) {
         }
         
         writeFileSync(configPath, updatedLines.join('\n'));
-        console.log(`✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done (default: Plan, port: ${freePort})`);
+        console.log(`✓ Patched backlog configuration with custom columns: Plan, Approved, Canceled, Doing, Done (default: Plan, port: ${freePort})`);
       } else {
         // Parse JSON config
         const config = JSON.parse(configContent);
 
         // Update statuses, default_status, and default_port
-        config.statuses = ["Plan", "Approve", "Cancel", "Doing", "Done"];
+        config.statuses = ["Plan", "Approved", "Canceled", "Doing", "Done"];
         config.default_status = "Plan";
         config.defaultPort = freePort;
 
         // Write the updated config back
         writeFileSync(configPath, JSON.stringify(config, null, 2));
-        console.log(`✓ Patched backlog configuration with custom columns: Plan, Approve, Cancel, Doing, Done (default: Plan, port: ${freePort})`);
+        console.log(`✓ Patched backlog configuration with custom columns: Plan, Approved, Canceled, Doing, Done (default: Plan, port: ${freePort})`);
       }
     } else {
       console.log("Note: Config file not found after init, config patching skipped.");

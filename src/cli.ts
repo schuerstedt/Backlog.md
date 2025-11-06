@@ -1686,6 +1686,11 @@ taskCmd
 		createMultiValueAccumulator(),
 	)
 	.option(
+		"--edit-ac <spec>",
+		'edit acceptance criterion (format: "<index>:<text>" or just index followed by text as next arg, can be used multiple times)',
+		createMultiValueAccumulator(),
+	)
+	.option(
 		"--check-ac <index>",
 		"check acceptance criterion by index (1-based, can be used multiple times)",
 		createMultiValueAccumulator(),
@@ -1772,6 +1777,7 @@ taskCmd
 		}
 
 		let removeCriteria: number[] | undefined;
+		let editCriteria: Array<{ index: number; text: string }> | undefined;
 		let checkCriteria: number[] | undefined;
 		let uncheckCriteria: number[] | undefined;
 
@@ -1780,6 +1786,39 @@ taskCmd
 			if (removes.length > 0) {
 				removeCriteria = removes;
 			}
+
+			// Parse --edit-ac entries
+			// Format: "index:text" or we try pairs if just numbers followed by text
+			if (options.editAc) {
+				const editValues = toStringArray(options.editAc);
+				if (editValues.length > 0) {
+					const edits: Array<{ index: number; text: string }> = [];
+
+					for (const value of editValues) {
+						// Try to parse as "index:text" format
+						const colonIndex = value.indexOf(":");
+						if (colonIndex > 0) {
+							const indexStr = value.substring(0, colonIndex).trim();
+							const text = value.substring(colonIndex + 1).trim();
+							if (!text) {
+								throw new Error(`--edit-ac requires text after colon. Format: "<index>:<text>"`);
+							}
+							const index = Number(indexStr);
+							if (Number.isNaN(index) || index < 1) {
+								throw new Error(`Invalid acceptance criterion index: ${indexStr}. Must be a positive integer.`);
+							}
+							edits.push({ index, text });
+						} else {
+							throw new Error(`--edit-ac format error. Use "<index>:<text>", e.g., "1:New text"`);
+						}
+					}
+
+					if (edits.length > 0) {
+						editCriteria = edits;
+					}
+				}
+			}
+
 			const checks = parsePositiveIndexList(options.checkAc);
 			if (checks.length > 0) {
 				checkCriteria = checks;
@@ -1851,6 +1890,9 @@ taskCmd
 		}
 		if (removeCriteria) {
 			editArgs.acceptanceCriteriaRemove = removeCriteria;
+		}
+		if (editCriteria) {
+			editArgs.acceptanceCriteriaEdit = editCriteria;
 		}
 		if (checkCriteria) {
 			editArgs.acceptanceCriteriaCheck = checkCriteria;

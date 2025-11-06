@@ -77,6 +77,7 @@ export interface TaskUpdateInput {
 	acceptanceCriteria?: AcceptanceCriterionInput[];
 	addAcceptanceCriteria?: Array<AcceptanceCriterionInput | string>;
 	removeAcceptanceCriteria?: number[];
+	editAcceptanceCriteria?: Array<{ index: number; text: string }>;
 	checkAcceptanceCriteria?: number[];
 	uncheckAcceptanceCriteria?: number[];
 	rawContent?: string;

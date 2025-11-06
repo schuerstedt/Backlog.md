@@ -20,6 +20,7 @@ export interface TaskEditArgs {
 	acceptanceCriteriaSet?: string[];
 	acceptanceCriteriaAdd?: string[];
 	acceptanceCriteriaRemove?: number[];
+	acceptanceCriteriaEdit?: Array<{ index: number; text: string }>;
 	acceptanceCriteriaCheck?: number[];
 	acceptanceCriteriaUncheck?: number[];
 }

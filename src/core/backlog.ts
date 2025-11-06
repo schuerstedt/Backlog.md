@@ -878,6 +878,27 @@ export class Core {
 			}
 		};
 
+		const editCriteria = (edits: Array<{ index: number; text: string }> | undefined) => {
+			if (!edits || edits.length === 0) return;
+			const missing: number[] = [];
+			for (const edit of edits) {
+				const criterion = acceptanceCriteria.find((item) => item.index === edit.index);
+				if (!criterion) {
+					missing.push(edit.index);
+					continue;
+				}
+				if (criterion.text !== edit.text) {
+					criterion.text = edit.text;
+					mutated = true;
+				}
+			}
+			if (missing.length > 0) {
+				const label = missing.map((index) => `#${index}`).join(", ");
+				throw new Error(`Acceptance criterion ${label} not found`);
+			}
+		};
+
+		editCriteria(input.editAcceptanceCriteria);
 		toggleCriteria(input.checkAcceptanceCriteria, true);
 		toggleCriteria(input.uncheckAcceptanceCriteria, false);
 
