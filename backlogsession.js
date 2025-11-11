@@ -111,12 +111,69 @@ function createNewSessionForToday(today, sessionsParentDir) {
   return newSessionDir;
 }
 
+/**
+ * Get all session directories (excluding today)
+ * @param {string} today - Date string in YYYY-MM-DD format to exclude
+ * @param {string} sessionsParentDir - Path to the backlogsession directory
+ * @returns {Array<{path: string, date: string, number: number}>} Array of session objects sorted by date (newest first), then by number (highest first)
+ */
+function getAllSessions(today, sessionsParentDir) {
+  if (!existsSync(sessionsParentDir)) {
+    return [];
+  }
+  
+  const entries = readdirSync(sessionsParentDir, { withFileTypes: true });
+  const sessions = entries
+    .filter(entry => entry.isDirectory() && SESSION_NAME_RE.test(entry.name))
+    .map(entry => {
+      const match = entry.name.match(/^(\d{4}-\d{2}-\d{2})-(\d+)$/);
+      if (!match) return null;
+      const date = match[1];
+      const number = parseInt(match[2], 10);
+      // Exclude today's sessions
+      if (date === today) return null;
+      return { path: join(sessionsParentDir, entry.name), date, number };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      // Sort by date descending (newest first)
+      if (a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      // Then by number descending (highest number first)
+      return b.number - a.number;
+    });
+  
+  return sessions;
+}
+
+/**
+ * Get the most recent session directory (excluding today)
+ * @param {string} today - Date string in YYYY-MM-DD format to exclude
+ * @param {string} sessionsParentDir - Path to the backlogsession directory
+ * @returns {string|null} Path to the most recent session or null if none exist
+ */
+function getLatestSession(today, sessionsParentDir) {
+  const sessions = getAllSessions(today, sessionsParentDir);
+  return sessions.length > 0 ? sessions[0].path : null;
+}
+
 // Determine today's date
 const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
 // Determine which session directory to use
 const cwd = process.cwd();
 const isInitCommand = rawArgs[0] === "init";
+
+// Check for --latest flag
+const hasLatestFlag = rawArgs.includes("--latest");
+
+// Don't allow --latest with init command
+if (isInitCommand && hasLatestFlag) {
+  console.error("Error: --latest flag cannot be used with 'init' command");
+  process.exit(1);
+}
+
 let sessionDir;
 
 // If we're already inside a backlog project (a session), use it directly for non-init commands
@@ -125,7 +182,51 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
 
 // Wrap in async IIFE to support await
 (async () => {
-  if (isInitCommand) {
+  // Handle --latest flag: use previous session instead of today's
+  if (hasLatestFlag) {
+    // First, ensure today's session exists
+    const todaySession = currentSessionDir || getLastSessionForToday(today, sessionsParentDir);
+    
+    if (!todaySession) {
+      console.log("No session found for today. Auto-initializing first session...");
+      sessionDir = createNewSessionForToday(today, sessionsParentDir);
+      
+      const createdName = basename(sessionDir);
+      const autoInitArgs = ["init", `Session ${createdName}`, "--defaults", "--agent-instructions", "none"];
+      const compiledAvailable = (() => {
+        try {
+          const res = spawnSync("backlog", ["--version"], { stdio: "ignore" });
+          return res.status === 0;
+        } catch { return false; }
+      })();
+      const initCmd = compiledAvailable ? "backlog" : "bun";
+      const initArgs = compiledAvailable ? autoInitArgs : [join(__dirname, "src", "cli.ts"), ...autoInitArgs];
+      
+      const initResult = spawnSync(initCmd, initArgs, {
+        stdio: "inherit",
+        cwd: sessionDir,
+      });
+      
+      if (initResult.status === 0) {
+        await patchConfigAfterInit(sessionDir);
+        await executeInitCommands(sessionDir);
+        console.log(`✓ Session initialized: ${sessionDir}`);
+      } else {
+        console.error(`Failed to auto-initialize session (exit code: ${initResult.status})`);
+        process.exit(initResult.status || 1);
+      }
+    }
+    
+    // Now get the latest/previous session
+    sessionDir = getLatestSession(today, sessionsParentDir);
+    
+    if (!sessionDir) {
+      console.error("Error: No previous session found. Cannot use --latest flag.");
+      process.exit(1);
+    }
+    
+    console.log(`Using latest session: ${basename(sessionDir)}`);
+  } else if (isInitCommand) {
     // For 'init' command, always create a new session
     sessionDir = createNewSessionForToday(today, sessionsParentDir);
   } else {
@@ -156,7 +257,8 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
       
       if (initResult.status === 0) {
         await patchConfigAfterInit(sessionDir);
-        await executeInitCommands(sessionDir);
+        // When auto-initializing (non-interactive), avoid starting long-running services like the browser.
+        await executeInitCommands(sessionDir, { skipBrowser: true });
         console.log(`✓ Session initialized: ${sessionDir}`);
         // Continue with the original command - don't exit!
       } else {
@@ -175,7 +277,9 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
 
   // Try to determine the backlog CLI path
   let backlogCommand;
-  let argsToPass = rawArgs;
+  
+  // Remove --latest flag from arguments before passing to backlog CLI
+  let argsToPass = rawArgs.filter(arg => arg !== "--latest");
 
   // Prefer compiled CLI if available, else fall back to dev runner
   const compiledAvailable = (() => {
@@ -187,11 +291,11 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
 
   if (compiledAvailable) {
     backlogCommand = "backlog";
-    argsToPass = [...rawArgs];
+    argsToPass = [...argsToPass];
   } else {
     // In development mode in this project, we run src/cli.ts with bun
     backlogCommand = "bun";
-    argsToPass = [join(__dirname, "src", "cli.ts"), ...rawArgs];
+    argsToPass = [join(__dirname, "src", "cli.ts"), ...argsToPass];
   }
 
   // Handle the special 'init' command to patch the config after initialization
@@ -216,8 +320,8 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
       if (code === 0) {
         // If init succeeded, patch the config file
         await patchConfigAfterInit(sessionDir);
-        // Execute initialization commands if initcommands.md exists
-        await executeInitCommands(sessionDir);
+        // Execute initialization commands if initcommands.md exists (interactive init: do not skip browser)
+        await executeInitCommands(sessionDir, { skipBrowser: false });
       }
       process.exit(code || 0);
     });
@@ -254,7 +358,7 @@ const sessionsParentDir = resolveSessionsParentDir(cwd);
 })();
 
 // Execute commands from initcommands.md if it exists
-async function executeInitCommands(sessionDir) {
+async function executeInitCommands(sessionDir, options = {}) {
   const backlogsessionDir = dirname(sessionDir);
   const initCommandsPath = join(backlogsessionDir, "initcommands.md");
   
@@ -302,9 +406,18 @@ bls browser
     }
     
     console.log(`\n✓ Executing ${commands.length} initialization command(s)...`);
-    
+
     // Execute each command sequentially in the session directory
     for (const command of commands) {
+      // Optionally skip starting the browser during auto-init
+      if (options.skipBrowser) {
+        const normalized = command.trim().toLowerCase();
+        if (normalized === "bls browser" || normalized.startsWith("bls browser ")) {
+          console.log(`  → Skipping long-running command during auto-init: ${command}`);
+          continue;
+        }
+      }
+
       console.log(`  → ${command}`);
       
       try {
@@ -323,7 +436,7 @@ bls browser
         console.error(`  ✗ Failed to execute command: ${err.message}`);
       }
     }
-    
+
     console.log("✓ Initialization commands completed\n");
   } catch (err) {
     console.error(`Error executing init commands: ${err.message}`);
