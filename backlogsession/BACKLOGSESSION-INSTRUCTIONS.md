@@ -27,19 +27,6 @@ Plan → Approved → Doing → Done
   - Multiple sessions per day are numbered sequentially (e.g., `2025-11-06-1`, `2025-11-06-2`)
   - **Do not** specify a session name - it's auto-generated
 
-**Accessing Previous Sessions with `--latest`:**
-
-- The `--latest` flag allows you to access the most recent session (excluding today)
-- Can be used with any `bls` command **except** `bls init`
-- If no session exists for today, `bls` will automatically create one before accessing the previous session
-- The `--latest` flag is automatically removed before the command is executed in the target session
-- Use cases:
-  - `bls task list --plain --latest` - List tasks from the previous session
-  - `bls task 3 --plain --latest` - View a specific task from the previous session
-  - `bls doc list --plain --latest` - List documents from the previous session
-  - `bls board --latest` - View the Kanban board from the previous session
-- Error handling: If no previous session exists, the command will fail with an error message
-
 **Task Creation:**
 
 - `bls task create "Demo" --ac "Acceptance1" --ac "Acceptance2"` - Create task Demo with two acceptance criteria
@@ -84,6 +71,20 @@ bls doc getpath <docID>             Get the filesystem path to the doc for SA ed
 
 ```
 
+**Accessing Previous Sessions with `--latest`:**
+
+- The `--latest` flag allows you to access the most recent session (excluding current)
+- Can be used with any `bls` command **except** `bls init`
+- If no session exists for today, `bls` will automatically create one before accessing the previous session
+- should be used to explore latest session for any open issues
+- Use cases:
+
+  - `bls task list --plain --latest` - List tasks from the previous session
+  - `bls task 3 --plain --latest` - View a specific task from the previous session
+  - `bls doc list --plain --latest` - List documents from the previous session
+  - `bls board --latest` - View the Kanban board from the previous session
+
+
 ## Workflow:
 
 ### Session Initialization:
@@ -92,6 +93,7 @@ A new session is initialized when the user asks for it. `bls` automatically crea
 **CRITICAL**: All `bls` commands MUST be executed from the project root directory to prevent unintended session initializations in subfolders.
 
 ### Session Goal Approval:
+
 Before any tasks are moved to 'Approved' or 'Doing' status, the 'Session Goal' document (doc-1) MUST be explicitly approved by the user. The SA should wait for user confirmation that the session goal is clear and accepted.
 
 ### Task Creation and Approval Process:
@@ -109,12 +111,15 @@ Before any tasks are moved to 'Approved' or 'Doing' status, the 'Session Goal' d
 6. **User disapproves** - If user disapproves a task, it is set to `Canceled`
 
 ### Task Migration:
+
 At the start of a new session, the SA MUST check for any uncompleted tasks from the previous session using the `--latest` flag (e.g., `bls task list --plain --latest`). For each uncompleted task found, the SA MUST create a new task in the current session using the `bls task create` command, copying the title, description, and acceptance criteria. This ensures continuity of work without directly accessing the file system for tasks.
 
 ### Automated Documentation:
+
 The `Session-Chat-Log.md` and `Session-Summary.md` MUST be automatically generated and updated by the SA at appropriate points during and at the end of the session. This ensures comprehensive documentation without explicit user requests.
 
 ### File System Interaction:
+
 **CRITICAL**: The agent MUST NOT interact with the file system directly (e.g., reading from `backlog/tasks/`). The only exception is reading from or writing to files within the `docs` folder, and only after retrieving the correct file path using the `bls doc getpath <docID>` command. All other operations MUST be performed using `bls` commands.
 
 ### Acceptance Criteria Requirements:
