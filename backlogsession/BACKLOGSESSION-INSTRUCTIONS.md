@@ -89,6 +89,10 @@ bls doc getpath <docID>             Get the filesystem path to the doc for SA ed
 ### Session Initialization:
 
 A new session is initialized when the user asks for it. `bls` automatically creates a new session if there is no session for today.
+**CRITICAL**: All `bls` commands MUST be executed from the project root directory to prevent unintended session initializations in subfolders.
+
+### Session Goal Approval:
+Before any tasks are moved to 'Approved' or 'Doing' status, the 'Session Goal' document (doc-1) MUST be explicitly approved by the user. The SA should wait for user confirmation that the session goal is clear and accepted.
 
 ### Task Creation and Approval Process:
 
@@ -104,17 +108,24 @@ A new session is initialized when the user asks for it. `bls` automatically crea
 5. **SA completes work** - SA moves tasks to `Done` once User Acceptance Testing (UAT) is approved
 6. **User disapproves** - If user disapproves a task, it is set to `Canceled`
 
+### Task Migration:
+At the start of a new session, the SA MUST check for any uncompleted tasks from the previous session using the `--latest` flag (e.g., `bls task list --plain --latest`). For each uncompleted task found, the SA MUST create a new task in the current session using the `bls task create` command, copying the title, description, and acceptance criteria. This ensures continuity of work without directly accessing the file system for tasks.
+
+### Automated Documentation:
+The `Session-Chat-Log.md` and `Session-Summary.md` MUST be automatically generated and updated by the SA at appropriate points during and at the end of the session. This ensures comprehensive documentation without explicit user requests.
+
+### File System Interaction:
+**CRITICAL**: The agent MUST NOT interact with the file system directly (e.g., reading from `backlog/tasks/`). The only exception is reading from or writing to files within the `docs` folder, and only after retrieving the correct file path using the `bls doc getpath <docID>` command. All other operations MUST be performed using `bls` commands.
+
 ### Acceptance Criteria Requirements:
 
 - All AC of a task MUST be met by the SA before a task is set to `Done`, except when user agrees on a different flow
 - SA can use `bls` for its internal planning (creating new tasks internally etc), but it is recommended that SA uses its own internal planning tools for actual execution during `Doing`
 - **CRITICAL**: Once a task is in `Approved` status, SA MUST NEVER change the Acceptance Criteria without explicit user approval. If AC need modification after approval, SA must discuss with user first and get permission before making any changes.
 
-### Special Tasks (Not Yet Implemented):
+### Special Tasks:
 
 There are two default tasks created through initialization:
 
 - **Task #1: "On Session Start"** - SA MUST apply all AC of #1 before actual work happens. Once all AC are fulfilled, #1 is moved to `Done`
 - **Task #2: "On Session End"** - When all tasks are finished and user asks for a session end, SA MUST apply all AC of #2. When user asks for a new session, SA checks first if "On Session End" is `Done` before initiating a `bls init`
-
-**Note:** Creation of tasks #1 and #2 is not implemented yet, so this requirement can be ignored for the moment.
