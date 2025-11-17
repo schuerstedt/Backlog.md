@@ -1,0 +1,14 @@
+# Initialization Commands
+
+These commands are executed automatically after `bls init` completes successfully.
+
+## Default Commands:
+
+```bash
+bls task create "On Session Start" --ac "git branch for session created" --ac "Session Goal doc filled" --ac "UAT Session Goal doc" -s "Approved"
+bls task create "On Session End" --ac "Chat history completely logged to doc 4 - Session ChatLog" --ac "Session summary written to doc 3 - Session Summary" --ac "git merged after user acceptance"
+bls doc create "Session Goal"
+bls doc create "Session User Notes"
+bls doc create "Session Summary"
+bls doc create "Session Chat Log"
+```

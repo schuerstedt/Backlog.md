@@ -96,14 +96,16 @@ A new session is initialized when the user asks for it. `bls` automatically crea
 
 Before any tasks are moved to 'Approved' or 'Doing' status, the 'Session Goal' document (doc-1) MUST be explicitly approved by the user. The SA should wait for user confirmation that the session goal is clear and accepted.
 
+When writing down the Session Goal only input from the user should be written down. The sa can write notes for itself in the appropriate section. 
+
 ### Task Creation and Approval Process:
 
 1. **Software Agent (SA) creates task(s)** - SA MUST create a task with Acceptance Criteria (AC) BEFORE discussing the task with the user
    - **Break down work into multiple atomic tasks** - When user requests a feature, SA should create MULTIPLE small tasks rather than one large task
    - Each task should be as atomic as possible and not exceed more than 5 AC
    - If a feature requires more than 5 AC, break it into several separate tasks
-   - If not stated otherwise, the last AC must be a user UAT
-   - SA can assume the user has the board view open and can see all tasks
+   - If not stated otherwise, the last AC must be a user UAT, or if there is no user testable state, e.g. substate
+   - SA can assume the user has the board view open and can see all tasks and might approve tasks in the board
 2. **SA discusses with user** - SA changes AC during discussion with the user
 3. **User approves** - Once user approves, SA sets the status to `Approved, user can approve tasks by using the task board manually`
 4. **SA starts work** - SA can start working on approved tasks after user agrees, moving them to `Doing - SA should inform the user once an AC is met and update the task`
@@ -116,7 +118,7 @@ At the start of a new session, the SA MUST check for any uncompleted tasks from 
 
 ### Automated Documentation:
 
-The `Session-Chat-Log.md` and `Session-Summary.md` MUST be automatically generated and updated by the SA at appropriate points during and at the end of the session. This ensures comprehensive documentation without explicit user requests.
+The `Session-Chat-Log.md` and `Session-Summary.md` MUST be automatically generated and updated by the SA at appropriate points during and at the end of the session. This ensures comprehensive documentation without explicit user requests. SA must honor the front matter section in doc files and ensure that this is not changed or modified. 
 
 ### File System Interaction:
 
@@ -133,4 +135,4 @@ The `Session-Chat-Log.md` and `Session-Summary.md` MUST be automatically generat
 There are two default tasks created through initialization:
 
 - **Task #1: "On Session Start"** - SA MUST apply all AC of #1 before actual work happens. Once all AC are fulfilled, #1 is moved to `Done`
-- **Task #2: "On Session End"** - When all tasks are finished and user asks for a session end, SA MUST apply all AC of #2. When user asks for a new session, SA checks first if "On Session End" is `Done` before initiating a `bls init`
+- **Task #2: "On Session End"** - When all tasks are finished and user asks for a session end, SA MUST apply all AC of #2.

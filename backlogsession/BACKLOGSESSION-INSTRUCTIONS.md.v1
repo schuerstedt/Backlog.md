@@ -71,32 +71,11 @@ bls doc getpath <docID>             Get the filesystem path to the doc for SA ed
 
 ```
 
-**Accessing Previous Sessions with `--latest`:**
-
-- The `--latest` flag allows you to access the most recent session (excluding current)
-- Can be used with any `bls` command **except** `bls init`
-- If no session exists for today, `bls` will automatically create one before accessing the previous session
-- should be used to explore latest session for any open issues
-- Use cases:
-
-  - `bls task list --plain --latest` - List tasks from the previous session
-  - `bls task 3 --plain --latest` - View a specific task from the previous session
-  - `bls doc list --plain --latest` - List documents from the previous session
-  - `bls board --latest` - View the Kanban board from the previous session
-
-
 ## Workflow:
 
 ### Session Initialization:
 
 A new session is initialized when the user asks for it. `bls` automatically creates a new session if there is no session for today.
-**CRITICAL**: All `bls` commands MUST be executed from the project root directory to prevent unintended session initializations in subfolders.
-
-### Session Goal Approval:
-
-Before any tasks are moved to 'Approved' or 'Doing' status, the 'Session Goal' document (doc-1) MUST be explicitly approved by the user. The SA should wait for user confirmation that the session goal is clear and accepted.
-
-When writing down the Session Goal only input from the user should be written down. The sa can write notes for itself in the appropriate section. 
 
 ### Task Creation and Approval Process:
 
@@ -104,25 +83,13 @@ When writing down the Session Goal only input from the user should be written do
    - **Break down work into multiple atomic tasks** - When user requests a feature, SA should create MULTIPLE small tasks rather than one large task
    - Each task should be as atomic as possible and not exceed more than 5 AC
    - If a feature requires more than 5 AC, break it into several separate tasks
-   - If not stated otherwise, the last AC must be a user UAT, or if there is no user testable state, e.g. substate
-   - SA can assume the user has the board view open and can see all tasks and might approve tasks in the board
+   - If not stated otherwise, the last AC must be a user UAT
+   - SA can assume the user has the board view open and can see all tasks
 2. **SA discusses with user** - SA changes AC during discussion with the user
 3. **User approves** - Once user approves, SA sets the status to `Approved, user can approve tasks by using the task board manually`
 4. **SA starts work** - SA can start working on approved tasks after user agrees, moving them to `Doing - SA should inform the user once an AC is met and update the task`
 5. **SA completes work** - SA moves tasks to `Done` once User Acceptance Testing (UAT) is approved
 6. **User disapproves** - If user disapproves a task, it is set to `Canceled`
-
-### Task Migration:
-
-At the start of a new session, the SA MUST check for any uncompleted tasks from the previous session using the `--latest` flag (e.g., `bls task list --plain --latest`). For each uncompleted task found, the SA MUST create a new task in the current session using the `bls task create` command, copying the title, description, and acceptance criteria. This ensures continuity of work without directly accessing the file system for tasks.
-
-### Automated Documentation:
-
-The `Session-Chat-Log.md` and `Session-Summary.md` MUST be automatically generated and updated by the SA at appropriate points during and at the end of the session. This ensures comprehensive documentation without explicit user requests. SA must honor the front matter section in doc files and ensure that this is not changed or modified. 
-
-### File System Interaction:
-
-**CRITICAL**: The agent MUST NOT interact with the file system directly (e.g., reading from `backlog/tasks/`). The only exception is reading from or writing to files within the `docs` folder, and only after retrieving the correct file path using the `bls doc getpath <docID>` command. All other operations MUST be performed using `bls` commands.
 
 ### Acceptance Criteria Requirements:
 
@@ -135,4 +102,5 @@ The `Session-Chat-Log.md` and `Session-Summary.md` MUST be automatically generat
 There are two default tasks created through initialization:
 
 - **Task #1: "On Session Start"** - SA MUST apply all AC of #1 before actual work happens. Once all AC are fulfilled, #1 is moved to `Done`
-- **Task #2: "On Session End"** - When all tasks are finished and user asks for a session end, SA MUST apply all AC of #2.
+- **Task #2: "On Session End"** - When all tasks are finished and user asks for a session end, SA MUST apply all AC of #2. When user asks for a new session, SA checks first if "On Session End" is `Done` before initiating a `bls init`
+```
